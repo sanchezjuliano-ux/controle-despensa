@@ -20,20 +20,71 @@ const genAI = new GoogleGenerativeAI(geminiApiKey)
 const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" })
 
 bot.start((ctx) => {
-  ctx.reply('📦 Olá! O Bot da Despensa Familiar está pronto para ajudar.\n\nPodes enviar texto natural, tirar FOTO a um talão, ou mandar um ÁUDIO com os produtos comprados.')
+  ctx.reply('📦 Olá! O Bot da Despensa Familiar está pronto para ajudar.\n\nPodes enviar texto natural, tirar FOTO a um talão, mandar um ÁUDIO, ou perguntar o que tens em stock e pedir sugestões.')
 })
 
-// === 1. MÓDULO DE TEXTO ===
+// === 1. MÓDULO DE TEXTO INTELIGENTE (Registo, Consulta, Comparação e Sugestão) ===
 bot.on('text', async (ctx) => {
   const texto = ctx.message.text
   
   if (texto.startsWith('/')) return;
   
-  ctx.reply('🧠 A pensar... a organizar os itens.')
+  ctx.reply('🧠 A processar a tua ordem...')
   const responsavel = ctx.from.first_name || 'Família'
 
   try {
-    const prompt = `
+    // Passo 1: Perguntar ao Gemini qual é a intenção do utilizador
+    const intentPrompt = `
+      Analisa a mensagem do utilizador num contexto de gestão de despensa doméstica.
+      Classifica a intenção em uma destas três categorias exatas:
+      1. "REGISTAR" (se o utilizador comprou ou quer adicionar itens/compras)
+      2. "CONSULTAR" (se o utilizador está a perguntar o que tem na despensa, stock ou inventário)
+      3. "COMPARAR_SUGERIR" (se o utilizador quer comparar preços, ver histórico, gastas ou pedir sugestões de compras)
+
+      Devolve APENAS a palavra da categoria ("REGISTAR", "CONSULTAR" ou "COMPARAR_SUGERIR") e mais nada.
+      Mensagem: "${texto}"
+    `
+    const intentResult = await model.generateContent(intentPrompt)
+    const intencao = intentResult.response.text().trim().toUpperCase()
+
+    // CASO A: CONSULTAR STOCK
+    if (intencao.includes('CONSULTAR')) {
+      const { data, error } = await supabase.from('despensa').select('*')
+
+      if (error || !data || data.length === 0) {
+        return ctx.reply('📦 A despensa está atualmente vazia ou não consegui aceder aos dados.')
+      }
+
+      let msgResposta = "📦 *Inventário Atual da Despensa:*\n"
+      data.forEach(item => {
+        const precoUn = item.preco_unitario ? Number(item.preco_unitario).toFixed(2) : '0.00'
+        msgResposta += `- *${item.item}* (x${item.quantidade}) | ${item.categoria || 'Geral'} | R$ ${precoUn}\n`
+      })
+      return ctx.replyWithMarkdown(msgResposta + '\nTudo sob controlo no quartel-general!')
+    }
+
+    // CASO B: COMPARAR / SUGERIR / HISTÓRICO
+    if (intencao.includes('COMPARAR')) {
+      const { data, error } = await supabase
+        .from('historico_movimentacoes')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(15)
+
+      if (error || !data || data.length === 0) {
+        return ctx.reply('📊 Ainda não há histórico suficiente para fazer comparações ou sugestões.')
+      }
+
+      const promptAnalise = `
+        Com base nestes dados recentes de movimentações de despensa, faz uma análise crítica, compara preços se houver variação, e sugere o que a família deve comprar ou prestar atenção:
+        ${JSON.stringify(data)}
+      `
+      const analiseRes = await model.generateContent(promptAnalise)
+      return ctx.reply(`📊 *Análise e Sugestões Táticas:*\n\n${analiseRes.response.text()}`)
+    }
+
+    // CASO C: REGISTAR ITENS (Lógica original melhorada)
+    const promptRegisto = `
       Analisa este texto de registo de despensa. 
       Extrai os itens e devolve APENAS um array JSON válido.
       Formato exigido: [{"item": "Nome do Produto", "quantidade": 1, "categoria": "Genérica", "preco": 10.50}]
@@ -41,8 +92,7 @@ bot.on('text', async (ctx) => {
       Texto do utilizador: "${texto}"
     `
     
-    const result = await model.generateContent(prompt)
-    
+    const result = await model.generateContent(promptRegisto)
     let jsonString = result.response.text().trim()
     if (jsonString.startsWith('```json')) jsonString = jsonString.slice(7, -3)
     if (jsonString.startsWith('```')) jsonString = jsonString.slice(3, -3)
@@ -63,9 +113,10 @@ bot.on('text', async (ctx) => {
       msgResposta += `- ${item} (x${quantidade || 1}) | R$ ${precoFinal.toFixed(2)}\n`
     }
     ctx.replyWithMarkdown(msgResposta + `\nTotal registado: ${inseridos} itens. Já está no Dashboard!`)
+
   } catch (error) {
     console.error(error)
-    ctx.reply('❌ Puxa, não consegui entender bem a mensagem. Podes tentar escrever de forma um pouco mais simples, por favor?')
+    ctx.reply('❌ Puxa, ocorreu um erro ao processar a tua ordem. Tenta reformular a frase.')
   }
 })
 
@@ -106,13 +157,13 @@ bot.on('photo', async (ctx) => {
     ctx.replyWithMarkdown(msgResposta + `\nTotal registado: ${inseridos} itens. Já está no Dashboard!`)
   } catch (error) {
     console.error(error)
-    ctx.reply('❌ Ups! Tive dificuldade em ler esta imagem. Consegues tentar enviar uma foto um bocadinho mais nítida, por favor?')
+    ctx.reply('❌ Ups! Tive dificuldade em ler esta imagem. Consegues tentar enviar uma foto mais nítida?')
   }
 })
 
 // === 3. MÓDULO DE AUDIÇÃO (VOZ) ===
 bot.on('voice', async (ctx) => {
-  ctx.reply('🎧 A escutar o teu áudio com atenção...')
+  ctx.reply('🎧 A escutar o teu áudio...')
   const responsavel = ctx.from.first_name || 'Família'
 
   try {
@@ -152,12 +203,12 @@ bot.on('voice', async (ctx) => {
     ctx.replyWithMarkdown(msgResposta + `\nTotal registado: ${inseridos} itens. Já está no Dashboard!`)
   } catch (error) {
     console.error(error)
-    ctx.reply('❌ Desculpa, não consegui perceber muito bem o áudio. Podes tentar falar um pouco mais devagar ou sem ruído de fundo?')
+    ctx.reply('❌ Desculpa, não consegui perceber o áudio.')
   }
 })
 
 bot.launch()
-console.log('🤖 Bot Multimodal Familiar a funcionar...')
+console.log('🤖 Bot Multimodal Familiar Inteligente a funcionar...')
 
 process.once('SIGINT', () => bot.stop('SIGINT'))
 process.once('SIGTERM', () => bot.stop('SIGTERM'))
