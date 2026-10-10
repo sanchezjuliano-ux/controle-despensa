@@ -11,7 +11,9 @@ const geminiApiKey = process.env.GEMINI_API_KEY;
 const bot = new Telegraf(token);
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
+
+// A CORREÇÃO CIRÚRGICA: gemini-1.5-flash
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 bot.on('text', async (ctx) => {
   const texto = ctx.message.text;
