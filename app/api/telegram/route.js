@@ -12,13 +12,13 @@ const bot = new Telegraf(token);
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-// O CÉREBRO ATUALIZADO: Motor gemini-3.8-flash conforme exigido pela infraestrutura da Google
+// CÉREBRO PRINCIPAL: Gemini 3.8 Flash
 const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
 
-bot.on('text', async (ctx) => {
-  const texto = ctx.message.text;
-  if (texto.startsWith('/')) return;
-  
+// ==========================================
+// MOTOR TÁTICO CENTRAL (Processa Texto e Áudio)
+// ==========================================
+async function processarOrdem(ctx, texto) {
   const responsavel = ctx.from.first_name || 'Família';
 
   try {
@@ -36,9 +36,7 @@ bot.on('text', async (ctx) => {
     const intentResult = await model.generateContent(intentPrompt);
     const intencao = intentResult.response.text().trim().toUpperCase();
 
-    // ==========================================
     // 1. LÓGICA: CONSULTAR INVENTÁRIO
-    // ==========================================
     if (intencao.includes('CONSULTAR')) {
       const { data, error } = await supabase.from('despensa').select('*').order('item', { ascending: true });
       if (error || !data || data.length === 0) {
@@ -57,9 +55,7 @@ bot.on('text', async (ctx) => {
       return ctx.replyWithMarkdown(msgResposta);
     }
 
-    // ==========================================
     // 2. LÓGICA: RELATÓRIOS E ALERTAS
-    // ==========================================
     if (intencao.includes('COMPARAR')) {
       const { data, error } = await supabase.from('despensa').select('*');
       if (error) return ctx.reply('📊 Erro ao puxar dados para análise.');
@@ -78,9 +74,7 @@ bot.on('text', async (ctx) => {
       return ctx.replyWithMarkdown(alertaMsg);
     }
 
-    // ==========================================
-    // 3. LÓGICA: CONSUMIR (DAR BAIXA) -> VAI PARA LISTA DE COMPRAS
-    // ==========================================
+    // 3. LÓGICA: CONSUMIR (DAR BAIXA)
     if (intencao.includes('CONSUMIR')) {
       const promptConsumo = `Analisa este texto de consumo de despensa e devolve APENAS um array JSON: [{"item": "Nome", "quantidade": 1}]. Se a quantidade não for explicitada, assume 1. Texto: "${texto}"`;
       const result = await model.generateContent(promptConsumo);
@@ -110,10 +104,10 @@ bot.on('text', async (ctx) => {
         let novaQuantidade = dbItem.quantidade - qtdBaixa;
         if (novaQuantidade < 0) novaQuantidade = 0; 
 
-        // Atualiza a quantidade na despensa
+        // Atualiza a despensa
         await supabase.from('despensa').update({ quantidade: novaQuantidade }).eq('id', dbItem.id);
 
-        // Regista saída no histórico
+        // Histórico de saída
         await supabase.from('historico_movimentacoes').insert([{ 
           item: dbItem.item, 
           tipo_movimento: 'saida', 
@@ -125,22 +119,16 @@ bot.on('text', async (ctx) => {
         let alerta = "";
         if (novaQuantidade === 0) {
           alerta = " 🚨 *[ZERA - Movido para Lista de Compras]* 🛒";
-          // Insere na tabela de compras para aparecer no Dashboard
           await supabase.from('lista_compras').insert([{ item: dbItem.item }]);
-        } else if (novaQuantidade === 1) {
-          alerta = " ⚠️ *[ACABANDO]*";
-        }
+        } else if (novaQuantidade === 1) alerta = " ⚠️ *[ACABANDO]*";
 
         msgResposta += `- ${dbItem.item}: ${dbItem.quantidade} ➔ *${novaQuantidade}* ${alerta}\n`;
       }
       return ctx.replyWithMarkdown(msgResposta);
     }
 
-    // ==========================================
-    // 4. LÓGICA: REGISTAR (ENTRADA) -> EXTRAÇÃO TÁTICA PARA O DASHBOARD
-    // ==========================================
+    // 4. LÓGICA: REGISTAR (ENTRADA COM EXTRAÇÃO DE LOJA E PAGAMENTO)
     if (intencao.includes('REGISTAR')) {
-      // O prompt agora exige brutalidade na extração dos dados completos
       const promptRegisto = `Analisa este texto de registo de compras e devolve APENAS um array JSON: [{"item": "Nome", "quantidade": 1, "categoria": "Mercearia", "preco": 10.50, "loja": "Nome do Mercado", "pagamento": "Forma de Pagamento"}]. Se o utilizador não mencionar a loja ou o pagamento, preenche com "Não informado". Texto: "${texto}"`;
       
       const result = await model.generateContent(promptRegisto);
@@ -157,17 +145,14 @@ bot.on('text', async (ctx) => {
         const precoFinal = preco || 0;
         const precoUnit = precoFinal / qtdEntrada;
 
-        // Procura se o item já existe na despensa
         const { data: exist } = await supabase.from('despensa').select('*').ilike('item', `%${item}%`);
         
         if (exist && exist.length > 0) {
-          // Já existe: Soma a quantidade
           await supabase.from('despensa').update({ 
             quantidade: exist[0].quantidade + qtdEntrada, 
             preco_unitario: precoUnit 
           }).eq('id', exist[0].id);
         } else {
-          // Não existe: Cria linha nova
           await supabase.from('despensa').insert([{ 
             item, 
             quantidade: qtdEntrada, 
@@ -177,8 +162,8 @@ bot.on('text', async (ctx) => {
           }]);
         }
 
-        // A INJEÇÃO: Histórico blindado com loja e pagamento para o painel renderizar os cartões
-        await supabase.from('historico_movimentacoes').insert([{ 
+        // Histórico de Entrada Tática
+        const { error: insertHistoricoError } = await supabase.from('historico_movimentacoes').insert([{ 
           item, 
           tipo_movimento: 'entrada', 
           quantidade: qtdEntrada, 
@@ -187,8 +172,9 @@ bot.on('text', async (ctx) => {
           loja: loja || 'Não informado',
           metodo_pagamento: pagamento || 'Não informado'
         }]);
+
+        if (insertHistoricoError) console.error("ERRO NO SUPABASE:", insertHistoricoError);
         
-        // Remove da lista de compras automaticamente
         await supabase.from('lista_compras').delete().ilike('item', `%${item}%`);
 
         msgResposta += `- ${item} (x${qtdEntrada}) | Loja: ${loja || '?'} | R$ ${precoFinal.toFixed(2)}\n`;
@@ -201,6 +187,52 @@ bot.on('text', async (ctx) => {
   } catch (error) {
     console.error("ERRO COMPLETO:", error);
     ctx.reply('❌ Erro tático ao processar a ordem na base de dados ou falha na IA.');
+  }
+}
+
+// ==========================================
+// GATILHO 1: MENSAGENS DE TEXTO
+// ==========================================
+bot.on('text', async (ctx) => {
+  const texto = ctx.message.text;
+  if (texto.startsWith('/')) return;
+  await processarOrdem(ctx, texto);
+});
+
+// ==========================================
+// GATILHO 2: MENSAGENS DE ÁUDIO (NOVO!)
+// ==========================================
+bot.on('voice', async (ctx) => {
+  try {
+    await ctx.reply("🎙️ Áudio recebido. A transcrever a ordem...");
+
+    // 1. Extrair o ficheiro de áudio do servidor do Telegram
+    const fileLink = await ctx.telegram.getFileLink(ctx.message.voice.file_id);
+    const response = await fetch(fileLink.href);
+    const buffer = await response.arrayBuffer();
+    const base64Audio = Buffer.from(buffer).toString("base64");
+
+    // 2. Preparar os dados Multimodais para o Gemini
+    const audioPart = {
+      inlineData: {
+        data: base64Audio,
+        mimeType: ctx.message.voice.mime_type || "audio/ogg",
+      },
+    };
+
+    // 3. IA Transcreve o Áudio
+    const promptTranscricao = "Transcreve exatamente o que foi dito neste áudio. Devolve APENAS o texto puro, sem aspas, sem asteriscos e sem explicações.";
+    const transcricaoResult = await model.generateContent([promptTranscricao, audioPart]);
+    const textoTranscrito = transcricaoResult.response.text().trim();
+
+    await ctx.reply(`✅ Transcrição: "${textoTranscrito}"\n⚙️ A executar...`);
+
+    // 4. Atirar a transcrição para o motor central como se fosse texto
+    await processarOrdem(ctx, textoTranscrito);
+
+  } catch (error) {
+    console.error("Erro no processamento de áudio:", error);
+    ctx.reply("❌ Falha ao processar o áudio. Tenta escrever ou grava de novo.");
   }
 });
 
