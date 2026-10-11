@@ -12,8 +12,8 @@ const bot = new Telegraf(token);
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-// A CORREÇÃO CIRÚRGICA: gemini-1.5-flash
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+// AQUI ESTÁ A CORREÇÃO TÁTICA: Passamos a usar a artilharia pesada (pro) para não dar 404
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
 bot.on('text', async (ctx) => {
   const texto = ctx.message.text;
@@ -189,8 +189,8 @@ bot.on('text', async (ctx) => {
     return ctx.reply("❌ Ordem ambígua. Especifica se queres Registar (compras), Consumir (dar baixa) ou Consultar o inventário.");
 
   } catch (error) {
-    console.error(error);
-    ctx.reply('❌ Erro tático ao processar a ordem na base de dados.');
+    console.error("ERRO COMPLETO:", error);
+    ctx.reply('❌ Erro tático ao processar a ordem na base de dados ou falha na IA.');
   }
 });
 
