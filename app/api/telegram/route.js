@@ -90,4 +90,123 @@ bot.on('text', async (ctx) => {
       if (jsonString.startsWith('```json')) jsonString = jsonString.slice(7, -3);
       if (jsonString.startsWith('```')) jsonString = jsonString.slice(3, -3);
       
-      const itensConsumidos =
+      const itensConsumidos = JSON.parse(jsonString);
+      let msgResposta = "📉 *Baixa de Itens Registada:*\n";
+
+      for (const produto of itensConsumidos) {
+        const { item, quantidade } = produto;
+        const qtdBaixa = quantidade || 1;
+
+        const { data: dbItems, error: searchError } = await supabase
+          .from('despensa')
+          .select('*')
+          .ilike('item', `%${item}%`)
+          .order('quantidade', { ascending: false });
+
+        if (searchError || !dbItems || dbItems.length === 0) {
+          msgResposta += `❌ Não encontrei *${item}* na despensa.\n`;
+          continue;
+        }
+
+        const dbItem = dbItems[0];
+        let novaQuantidade = dbItem.quantidade - qtdBaixa;
+        if (novaQuantidade < 0) novaQuantidade = 0; 
+
+        // Atualiza a quantidade na despensa
+        await supabase.from('despensa').update({ quantidade: novaQuantidade }).eq('id', dbItem.id);
+
+        // Regista saída no histórico
+        await supabase.from('historico_movimentacoes').insert([{ 
+          item: dbItem.item, 
+          tipo_movimento: 'saida', 
+          quantidade: qtdBaixa, 
+          preco_unitario: dbItem.preco_unitario || 0, 
+          responsavel 
+        }]);
+
+        let alerta = "";
+        if (novaQuantidade === 0) {
+          alerta = " 🚨 *[ZERA - Movido para Lista de Compras]* 🛒";
+          // Insere na tabela de compras para aparecer no Dashboard
+          await supabase.from('lista_compras').insert([{ item: dbItem.item }]);
+        } else if (novaQuantidade === 1) {
+          alerta = " ⚠️ *[ACABANDO]*";
+        }
+
+        msgResposta += `- ${dbItem.item}: ${dbItem.quantidade} ➔ *${novaQuantidade}* ${alerta}\n`;
+      }
+      return ctx.replyWithMarkdown(msgResposta);
+    }
+
+    // ==========================================
+    // 4. LÓGICA: REGISTAR (ENTRADA) -> VOLTA AO INVENTÁRIO
+    // ==========================================
+    if (intencao.includes('REGISTAR')) {
+      const promptRegisto = `Analisa este texto de registo de compras e devolve APENAS um array JSON: [{"item": "Nome", "quantidade": 1, "categoria": "Mercearia", "preco": 10.50}]. Texto: "${texto}"`;
+      const result = await model.generateContent(promptRegisto);
+      let jsonString = result.response.text().trim();
+      if (jsonString.startsWith('```json')) jsonString = jsonString.slice(7, -3);
+      if (jsonString.startsWith('```')) jsonString = jsonString.slice(3, -3);
+      
+      const itens = JSON.parse(jsonString);
+      let msgResposta = "✅ *Compras Registadas (Voltou ao Inventário):*\n";
+
+      for (const produto of itens) {
+        const { item, quantidade, categoria, preco } = produto;
+        const qtdEntrada = quantidade || 1;
+        const precoFinal = preco || 0;
+        const precoUnit = precoFinal / qtdEntrada;
+
+        // Procura se o item já existe na despensa
+        const { data: exist } = await supabase.from('despensa').select('*').ilike('item', `%${item}%`);
+        
+        if (exist && exist.length > 0) {
+          // Já existe: Soma a quantidade em vez de duplicar a linha
+          await supabase.from('despensa').update({ 
+            quantidade: exist[0].quantidade + qtdEntrada, 
+            preco_unitario: precoUnit 
+          }).eq('id', exist[0].id);
+        } else {
+          // Não existe: Cria linha nova
+          await supabase.from('despensa').insert([{ 
+            item, 
+            quantidade: qtdEntrada, 
+            categoria: categoria || 'Mercearia', 
+            local: 'Armário', 
+            preco_unitario: precoUnit 
+          }]);
+        }
+
+        // Regista entrada no histórico
+        await supabase.from('historico_movimentacoes').insert([{ item, tipo_movimento: 'entrada', quantidade: qtdEntrada, preco_unitario: precoUnit, responsavel }]);
+        
+        // Remove da lista de compras automaticamente, pois já foi reposto
+        await supabase.from('lista_compras').delete().ilike('item', `%${item}%`);
+
+        msgResposta += `- ${item} (x${qtdEntrada}) | R$ ${precoFinal.toFixed(2)}\n`;
+      }
+      return ctx.replyWithMarkdown(msgResposta);
+    }
+
+    return ctx.reply("❌ Ordem ambígua. Especifica se queres Registar (compras), Consumir (dar baixa) ou Consultar o inventário.");
+
+  } catch (error) {
+    console.error("ERRO COMPLETO:", error);
+    ctx.reply('❌ Erro tático ao processar a ordem na base de dados ou falha na IA.');
+  }
+});
+
+export async function POST(req) {
+  try {
+    const body = await req.json();
+    await bot.handleUpdate(body);
+    return NextResponse.json({ status: 'ok' });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: 'Erro no webhook' }, { status: 500 });
+  }
+}
+
+export async function GET() {
+  return NextResponse.json({ status: 'Bot online na Vercel 24/7' });
+}
