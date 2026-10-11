@@ -15,7 +15,7 @@ const genAI = new GoogleGenerativeAI(geminiApiKey);
 // ==========================================
 // O RECUO TÁTICO: Motor gemini-1.0-pro para furar o bloqueio 404 da Google
 // ==========================================
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
 
 bot.on('text', async (ctx) => {
   const texto = ctx.message.text;
