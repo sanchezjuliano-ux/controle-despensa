@@ -12,9 +12,7 @@ const bot = new Telegraf(token);
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-// ==========================================
-// O RECUO TÁTICO: Motor gemini-1.0-pro para furar o bloqueio 404 da Google
-// ==========================================
+// O CÉREBRO ATUALIZADO: Motor gemini-3.8-flash conforme exigido pela infraestrutura da Google
 const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
 
 bot.on('text', async (ctx) => {
@@ -139,10 +137,12 @@ bot.on('text', async (ctx) => {
     }
 
     // ==========================================
-    // 4. LÓGICA: REGISTAR (ENTRADA) -> VOLTA AO INVENTÁRIO
+    // 4. LÓGICA: REGISTAR (ENTRADA) -> EXTRAÇÃO TÁTICA PARA O DASHBOARD
     // ==========================================
     if (intencao.includes('REGISTAR')) {
-      const promptRegisto = `Analisa este texto de registo de compras e devolve APENAS um array JSON: [{"item": "Nome", "quantidade": 1, "categoria": "Mercearia", "preco": 10.50}]. Texto: "${texto}"`;
+      // O prompt agora exige brutalidade na extração dos dados completos
+      const promptRegisto = `Analisa este texto de registo de compras e devolve APENAS um array JSON: [{"item": "Nome", "quantidade": 1, "categoria": "Mercearia", "preco": 10.50, "loja": "Nome do Mercado", "pagamento": "Forma de Pagamento"}]. Se o utilizador não mencionar a loja ou o pagamento, preenche com "Não informado". Texto: "${texto}"`;
+      
       const result = await model.generateContent(promptRegisto);
       let jsonString = result.response.text().trim();
       if (jsonString.startsWith('```json')) jsonString = jsonString.slice(7, -3);
@@ -152,7 +152,7 @@ bot.on('text', async (ctx) => {
       let msgResposta = "✅ *Compras Registadas (Voltou ao Inventário):*\n";
 
       for (const produto of itens) {
-        const { item, quantidade, categoria, preco } = produto;
+        const { item, quantidade, categoria, preco, loja, pagamento } = produto;
         const qtdEntrada = quantidade || 1;
         const precoFinal = preco || 0;
         const precoUnit = precoFinal / qtdEntrada;
@@ -161,7 +161,7 @@ bot.on('text', async (ctx) => {
         const { data: exist } = await supabase.from('despensa').select('*').ilike('item', `%${item}%`);
         
         if (exist && exist.length > 0) {
-          // Já existe: Soma a quantidade em vez de duplicar a linha
+          // Já existe: Soma a quantidade
           await supabase.from('despensa').update({ 
             quantidade: exist[0].quantidade + qtdEntrada, 
             preco_unitario: precoUnit 
@@ -177,13 +177,21 @@ bot.on('text', async (ctx) => {
           }]);
         }
 
-        // Regista entrada no histórico
-        await supabase.from('historico_movimentacoes').insert([{ item, tipo_movimento: 'entrada', quantidade: qtdEntrada, preco_unitario: precoUnit, responsavel }]);
+        // A INJEÇÃO: Histórico blindado com loja e pagamento para o painel renderizar os cartões
+        await supabase.from('historico_movimentacoes').insert([{ 
+          item, 
+          tipo_movimento: 'entrada', 
+          quantidade: qtdEntrada, 
+          preco_unitario: precoUnit, 
+          responsavel,
+          loja: loja || 'Não informado',
+          metodo_pagamento: pagamento || 'Não informado'
+        }]);
         
-        // Remove da lista de compras automaticamente, pois já foi reposto
+        // Remove da lista de compras automaticamente
         await supabase.from('lista_compras').delete().ilike('item', `%${item}%`);
 
-        msgResposta += `- ${item} (x${qtdEntrada}) | R$ ${precoFinal.toFixed(2)}\n`;
+        msgResposta += `- ${item} (x${qtdEntrada}) | Loja: ${loja || '?'} | R$ ${precoFinal.toFixed(2)}\n`;
       }
       return ctx.replyWithMarkdown(msgResposta);
     }
