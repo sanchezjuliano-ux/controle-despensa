@@ -22,14 +22,13 @@ export default function GestaoDespensa() {
   const [categoria, setCategoria] = useState('Mercearia');
   const [local, setLocal] = useState('Armário');
   const [preco, setPreco] = useState('');
+  const [validade, setValidade] = useState('');
 
-  // Arrays dinâmicos para Categorias e Locais
   const categoriasPadrao = ['Mercearia', 'Bebidas', 'Limpeza', 'Talho', 'Outros'];
   const locaisPadrao = ['Armário', 'Frigorífico', 'Arca'];
   const [listaCategorias, setListaCategorias] = useState<string[]>(categoriasPadrao);
   const [listaLocais, setListaLocais] = useState<string[]>(locaisPadrao);
   
-  // Estados para alternar entre "Select" e "Input"
   const [isNovaCategoria, setIsNovaCategoria] = useState(false);
   const [isNovoLocal, setIsNovoLocal] = useState(false);
 
@@ -56,11 +55,8 @@ export default function GestaoDespensa() {
     const { data } = await supabase.from('despensa').select('*').order('id', { ascending: false });
     if (data) {
       setItens(data);
-      
-      // Inteligência de extração: varre a base de dados para aprender categorias e locais novos
       const catUnicas = Array.from(new Set([...categoriasPadrao, ...data.map((i: any) => i.categoria).filter(Boolean)]));
       const locUnicas = Array.from(new Set([...locaisPadrao, ...data.map((i: any) => i.local).filter(Boolean)]));
-      
       setListaCategorias(catUnicas as string[]);
       setListaLocais(locUnicas as string[]);
     }
@@ -93,9 +89,7 @@ export default function GestaoDespensa() {
 
   const buscarHistorico = async () => {
     const { data, error } = await supabase.from('compras_realizadas').select('*').order('id', { ascending: false });
-    if (error) {
-      console.error("ERRO AO CARREGAR HISTÓRICO:", error);
-    }
+    if (error) console.error("ERRO AO CARREGAR HISTÓRICO:", error);
     setHistoricoCompras(data || []);
   };
 
@@ -104,11 +98,7 @@ export default function GestaoDespensa() {
     const nomeLimpo = nome.trim();
     const precoNum = parseFloat(preco.replace(',', '.')) || 0;
 
-    const { data: existente } = await supabase
-      .from('despensa')
-      .select('*')
-      .ilike('item', nomeLimpo)
-      .maybeSingle();
+    const { data: existente } = await supabase.from('despensa').select('*').ilike('item', nomeLimpo).maybeSingle();
 
     if (existente) {
       const novaQtd = Number(existente.quantidade || 0) + Number(quantidade);
@@ -116,7 +106,8 @@ export default function GestaoDespensa() {
         quantidade: novaQtd,
         preco_unitario: precoNum > 0 ? precoNum : existente.preco_unitario,
         categoria,
-        local
+        local,
+        validade: validade || existente.validade
       }).eq('id', existente.id);
     } else {
       await supabase.from('despensa').insert([{ 
@@ -124,31 +115,23 @@ export default function GestaoDespensa() {
         quantidade: Number(quantidade), 
         categoria, 
         local, 
-        preco_unitario: precoNum 
+        preco_unitario: precoNum,
+        validade: validade || null
       }]);
     }
 
-    // Reset aos campos base
-    setNome(''); 
-    setQuantidade('1'); 
-    setPreco(''); 
-    
-    // Devolve as caixas ao estado de seleção (fechando o input de texto, se estava aberto)
-    setIsNovaCategoria(false);
-    setIsNovoLocal(false);
-    
-    buscarItens();
-    setShowFormMobile(false); 
+    setNome(''); setQuantidade('1'); setPreco(''); setValidade(''); 
+    setIsNovaCategoria(false); setIsNovoLocal(false);
+    buscarItens(); setShowFormMobile(false); 
   };
 
   const darBaixaDespensa = async (item: any) => {
     await supabase.from('lista_compras').insert([{ item: item.item.trim(), quantidade: 1, categoria: item.categoria, local: item.local, preco_unitario: item.preco_unitario }]);
     await supabase.from('despensa').delete().eq('id', item.id);
-    buscarItens(); 
-    buscarCompras();
+    buscarItens(); buscarCompras();
   };
 
-  const iniciarEdicao = (item: any) => { setEditingId(item.id); setEditForm({ ...item }); };
+  const iniciarEdicao = (item: any) => { setEditingId(item.id); setEditForm({ ...item, validade: item.validade || '' }); };
   const cancelarEdicao = () => { setEditingId(null); };
   
   const salvarEdicao = async () => {
@@ -161,27 +144,34 @@ export default function GestaoDespensa() {
       await supabase.from('despensa').delete().eq('id', editingId);
     } else {
       await supabase.from('despensa').update({ 
-        item: nomeLimpo, 
-        quantidade: qtdFinal, 
-        categoria: editForm.categoria, 
-        local: editForm.local, 
-        preco_unitario: precoFinal 
+        item: nomeLimpo, quantidade: qtdFinal, categoria: editForm.categoria, local: editForm.local, preco_unitario: precoFinal, validade: editForm.validade || null 
       }).eq('id', editingId);
     }
-    cancelarEdicao(); 
-    buscarItens(); 
-    buscarCompras();
+    cancelarEdicao(); buscarItens(); buscarCompras();
   };
 
-  const atualizarCarrinho = (id: number, campo: string, valor: string) => {
-    setCompras(compras.map(c => c.id === id ? { ...c, [campo]: valor } : c));
+  const avaliarAlertaValidade = (dataValidade: string) => {
+    if (!dataValidade) return null;
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const vencimento = new Date(dataValidade);
+    vencimento.setMinutes(vencimento.getMinutes() + vencimento.getTimezoneOffset());
+    
+    const diffTempo = vencimento.getTime() - hoje.getTime();
+    const diffDias = Math.ceil(diffTempo / (1000 * 3600 * 24));
+
+    if (diffDias < 0) return { msg: 'Vencido!', estilo: 'bg-red-900/50 text-red-400 border border-red-500/50 animate-pulse' };
+    if (diffDias === 0) return { msg: 'Vence hoje!', estilo: 'bg-red-600/30 text-red-400 font-bold border border-red-500' };
+    if (diffDias === 1) return { msg: 'Vence amanhã!', estilo: 'bg-red-900/40 text-red-300 font-bold border border-red-500/50' };
+    if (diffDias <= 3) return { msg: `Vence em ${diffDias} dias`, estilo: 'bg-orange-900/40 text-orange-400 font-bold border border-orange-500/50' };
+    if (diffDias <= 7) return { msg: `Vence em ${diffDias} dias`, estilo: 'bg-yellow-900/40 text-yellow-400 font-medium border border-yellow-500/50' };
+    
+    const dataFormatada = vencimento.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    return { msg: `Val: ${dataFormatada}`, estilo: 'bg-gray-800 text-gray-400 border border-gray-700' };
   };
 
-  const apagarDaLista = async (id: number) => {
-    await supabase.from('lista_compras').delete().eq('id', id);
-    buscarCompras();
-  };
-
+  const atualizarCarrinho = (id: number, campo: string, valor: string) => { setCompras(compras.map(c => c.id === id ? { ...c, [campo]: valor } : c)); };
+  const apagarDaLista = async (id: number) => { await supabase.from('lista_compras').delete().eq('id', id); buscarCompras(); };
   const abrirCheckout = () => {
     const itensComprados = compras.filter(c => parseFloat(String(c.preco_compra || '0').replace(',', '.')) > 0);
     if (itensComprados.length === 0) return alert('Aponta o valor de pelo menos um produto para finalizar a compra.');
@@ -196,91 +186,40 @@ export default function GestaoDespensa() {
 
     try {
       const arrayItensJSON = [];
-
       for (const compra of itensComprados) {
         const nomeLimpo = compra.item.trim();
         const precoFinal = parseFloat(String(compra.preco_compra).replace(',', '.'));
         const qtdFinal = Number(compra.qtd_compra) || 1;
-
         arrayItensJSON.push({ item: nomeLimpo, quantidade: qtdFinal, preco_unitario: precoFinal, categoria: compra.categoria });
 
-        const { data: existente } = await supabase
-          .from('despensa')
-          .select('*')
-          .ilike('item', nomeLimpo)
-          .maybeSingle();
+        const { data: existente } = await supabase.from('despensa').select('*').ilike('item', nomeLimpo).maybeSingle();
 
         if (existente) {
           const novaQuantidade = Number(existente.quantidade || 0) + qtdFinal;
-          await supabase
-            .from('despensa')
-            .update({ 
-              quantidade: novaQuantidade, 
-              preco_unitario: precoFinal, 
-              local: compra.local || existente.local, 
-              categoria: compra.categoria || existente.categoria 
-            })
-            .eq('id', existente.id);
+          await supabase.from('despensa').update({ quantidade: novaQuantidade, preco_unitario: precoFinal, local: compra.local || existente.local, categoria: compra.categoria || existente.categoria }).eq('id', existente.id);
         } else {
-          await supabase.from('despensa').insert([{ 
-            item: nomeLimpo, 
-            quantidade: qtdFinal, 
-            categoria: compra.categoria, 
-            local: compra.local || 'Armário', 
-            preco_unitario: precoFinal 
-          }]);
+          await supabase.from('despensa').insert([{ item: nomeLimpo, quantidade: qtdFinal, categoria: compra.categoria, local: compra.local || 'Armário', preco_unitario: precoFinal }]);
         }
-
         await supabase.from('historico_movimentacoes').insert([{ item: nomeLimpo, tipo_movimento: 'entrada', quantidade: qtdFinal, preco_unitario: precoFinal, responsavel: checkoutResponsavel }]);
         await supabase.from('lista_compras').delete().eq('id', compra.id);
       }
       
-      const { error: erroHistorico } = await supabase.from('compras_realizadas').insert([{
-        data_hora: dataAtual,
-        estabelecimento: checkoutLoja || 'Não informado',
-        forma_pagamento: checkoutPagamento,
-        responsavel: checkoutResponsavel,
-        valor_total: totalCalculado,
-        itens: arrayItensJSON
-      }]);
+      const { error: erroHistorico } = await supabase.from('compras_realizadas').insert([{ data_hora: dataAtual, estabelecimento: checkoutLoja || 'Não informado', forma_pagamento: checkoutPagamento, responsavel: checkoutResponsavel, valor_total: totalCalculado, itens: arrayItensJSON }]);
+      if (erroHistorico) { console.error("ERRO FATAL:", erroHistorico); alert("Erro ao guardar: " + erroHistorico.message); setProcessandoCompra(false); return; }
 
-      if (erroHistorico) {
-        console.error("ERRO FATAL AO GRAVAR O TALÃO:", erroHistorico);
-        alert("Atenção! Erro ao guardar o Histórico: " + erroHistorico.message);
-        setProcessandoCompra(false);
-        return;
-      }
-
-      setShowCheckout(false);
-      setCheckoutLoja('');
-      buscarItens();
-      buscarCompras();
-      buscarHistorico();
-      setAbaAtiva('historico');
-    } catch (error) {
-      console.error(error);
-      alert('Ocorreu um erro geral ao processar o checkout.');
-    } finally {
-      setProcessandoCompra(false);
-    }
+      setShowCheckout(false); setCheckoutLoja(''); buscarItens(); buscarCompras(); buscarHistorico(); setAbaAtiva('historico');
+    } catch (error) { console.error(error); alert('Erro geral.'); } finally { setProcessandoCompra(false); }
   };
 
   const totalCarrinho = compras.reduce((acc, c) => acc + (Number(c.qtd_compra || 0) * parseFloat(String(c.preco_compra || 0).replace(',', '.'))), 0);
   const itensComPreco = compras.filter(c => parseFloat(String(c.preco_compra || '0').replace(',', '.')) > 0).length;
-
   const historicoFiltrado = historicoCompras.filter(h => {
     const termo = buscaHistorico.toLowerCase();
-    return (
-      (h.estabelecimento || '').toLowerCase().includes(termo) ||
-      (h.responsavel || '').toLowerCase().includes(termo) ||
-      (h.forma_pagamento || '').toLowerCase().includes(termo) ||
-      (h.data_hora || '').toLowerCase().includes(termo)
-    );
+    return ((h.estabelecimento || '').toLowerCase().includes(termo) || (h.responsavel || '').toLowerCase().includes(termo) || (h.forma_pagamento || '').toLowerCase().includes(termo) || (h.data_hora || '').toLowerCase().includes(termo));
   });
 
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-[#0B0F19] text-gray-200 font-sans overflow-hidden">
-      
       <aside className="w-full lg:w-64 bg-[#111827] border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-col shrink-0 z-20 shadow-md">
         <div className="p-4 lg:p-6 border-b border-gray-800">
           <h1 className="text-xl font-bold text-white flex items-center gap-2">📦 Gestão Sanchez</h1>
@@ -308,32 +247,14 @@ export default function GestaoDespensa() {
               <p className="text-gray-400 text-sm mb-6">Total da operação: <span className="text-green-400 font-bold text-lg">R$ {totalCarrinho.toFixed(2)}</span></p>
               
               <div className="space-y-5">
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1">ONDE COMPRASTE?</label>
-                  <input type="text" autoComplete="off" placeholder="Ex: Assaí, Carrefour
-	
-	
-		
-	
-	
-		 até 1,75% cashback
-	
-..." value={checkoutLoja} onChange={(e) => setCheckoutLoja(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-green-500" />
-                </div>
+                <div><label className="block text-xs font-medium text-gray-400 mb-1">ONDE COMPRASTE?</label><input type="text" autoComplete="off" placeholder="Ex: Assaí..." value={checkoutLoja} onChange={(e) => setCheckoutLoja(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-green-500" /></div>
                 <div>
                   <label className="block text-xs font-medium text-gray-400 mb-1">COMO FOI PAGO?</label>
                   <select value={checkoutPagamento} onChange={(e) => setCheckoutPagamento(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-green-500">
-                    <option value="Cartão de Crédito">Cartão de Crédito</option>
-                    <option value="Cartão de Débito">Cartão de Débito</option>
-                    <option value="Dinheiro">Dinheiro Físico</option>
-                    <option value="PIX">PIX</option>
-                    <option value="Vale Alimentação">Vale Alimentação</option>
+                    <option value="Cartão de Crédito">Cartão de Crédito</option><option value="Cartão de Débito">Cartão de Débito</option><option value="Dinheiro">Dinheiro Físico</option><option value="PIX">PIX</option><option value="Vale Alimentação">Vale Alimentação</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1">QUEM COMPROU?</label>
-                  <input type="text" autoComplete="off" value={checkoutResponsavel} onChange={(e) => setCheckoutResponsavel(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-green-500" />
-                </div>
+                <div><label className="block text-xs font-medium text-gray-400 mb-1">QUEM COMPROU?</label><input type="text" autoComplete="off" value={checkoutResponsavel} onChange={(e) => setCheckoutResponsavel(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-green-500" /></div>
               </div>
 
               <div className="flex gap-3 mt-8 pb-4 lg:pb-0">
@@ -353,10 +274,7 @@ export default function GestaoDespensa() {
               
               <div className={`${showFormMobile ? 'fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-sm p-4' : 'hidden lg:block'} lg:static lg:flex lg:items-start lg:justify-start lg:bg-transparent lg:backdrop-blur-none lg:p-0`}>
                 <div className="bg-[#111827] w-full border border-gray-700 lg:border-gray-800 rounded-2xl lg:rounded-xl p-6 h-fit shadow-2xl lg:shadow-sm relative animate-slide-up lg:animate-none">
-                  
-                  <button type="button" onClick={() => setShowFormMobile(false)} className="lg:hidden absolute top-4 right-4 text-gray-400 hover:text-white bg-gray-800/50 rounded-full p-2 w-8 h-8 flex items-center justify-center">
-                    ✕
-                  </button>
+                  <button type="button" onClick={() => setShowFormMobile(false)} className="lg:hidden absolute top-4 right-4 text-gray-400 hover:text-white bg-gray-800/50 rounded-full p-2 w-8 h-8 flex items-center justify-center">✕</button>
 
                   <h3 className="text-lg font-semibold text-white mb-5">Novo Lançamento</h3>
                   <form onSubmit={adicionarItem} className="space-y-5">
@@ -365,15 +283,20 @@ export default function GestaoDespensa() {
                       <input type="text" required value={nome} onChange={(e) => setNome(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500" />
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="col-span-1">
                         <label className="block text-xs font-medium text-gray-400 mb-1">QTD</label>
                         <input type="number" inputMode="numeric" pattern="[0-9]*" min="1" required value={quantidade} onChange={(e) => setQuantidade(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500" />
                       </div>
-                      <div>
+                      <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-400 mb-1">PREÇO (R$)</label>
                         <input type="text" inputMode="decimal" placeholder="0,00" value={preco} onChange={(e) => setPreco(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500" />
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-purple-400 mb-1">VALIDADE (Opcional)</label>
+                      <input type="date" value={validade} onChange={(e) => setValidade(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-gray-300 focus:outline-none focus:border-purple-500" />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -387,7 +310,7 @@ export default function GestaoDespensa() {
                         ) : (
                           <select value={categoria} onChange={(e) => { if(e.target.value === 'NOVA') { setIsNovaCategoria(true); setCategoria(''); } else { setCategoria(e.target.value); } }} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500">
                             {listaCategorias.map(c => <option key={c} value={c}>{c}</option>)}
-                            <option value="NOVA" className="text-green-400 font-bold bg-green-900/20">➕ Adicionar Nova...</option>
+                            <option value="NOVA" className="text-green-400 font-bold bg-green-900/20">➕ Nova...</option>
                           </select>
                         )}
                       </div>
@@ -402,7 +325,7 @@ export default function GestaoDespensa() {
                         ) : (
                           <select value={local} onChange={(e) => { if(e.target.value === 'NOVA') { setIsNovoLocal(true); setLocal(''); } else { setLocal(e.target.value); } }} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500">
                             {listaLocais.map(l => <option key={l} value={l}>{l}</option>)}
-                            <option value="NOVA" className="text-green-400 font-bold bg-green-900/20">➕ Adicionar Novo...</option>
+                            <option value="NOVA" className="text-green-400 font-bold bg-green-900/20">➕ Novo...</option>
                           </select>
                         )}
                       </div>
@@ -414,36 +337,36 @@ export default function GestaoDespensa() {
               </div>
 
               <div className="lg:col-span-2">
-                
                 <div className="hidden md:block bg-[#111827] border border-gray-800 rounded-xl overflow-hidden shadow-sm">
                   <div className="overflow-x-auto w-full">
                     <table className="w-full text-left border-collapse min-w-full">
                       <thead>
                         <tr className="border-b border-gray-800 text-[10px] md:text-xs text-gray-400 bg-gray-900/50">
                           <th className="p-4 uppercase">Item</th>
-                          <th className="p-4 uppercase w-16 md:w-auto">Qtd</th>
+                          <th className="p-4 uppercase w-16">Qtd</th>
+                          <th className="p-4 uppercase">Validade</th>
                           <th className="p-4 uppercase">Local</th>
                           <th className="p-4 uppercase">Preço</th>
                           <th className="p-4 uppercase text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {loading ? ( <tr><td colSpan={5} className="text-center py-8">A carregar...</td></tr> ) : itens.map((item) => (
+                        {loading ? ( <tr><td colSpan={6} className="text-center py-8">A carregar...</td></tr> ) : itens.map((item) => {
+                          const alerta = avaliarAlertaValidade(item.validade);
+                          
+                          return (
                           <tr key={item.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
                             {editingId === item.id ? (
                               <>
-                                <td className="p-3"><input type="text" className="bg-[#0B0F19] border border-gray-700 w-full min-w-[120px] text-sm rounded px-3 py-2" value={editForm.item} onChange={(e) => setEditForm({...editForm, item: e.target.value})} /></td>
-                                <td className="p-3"><input type="number" inputMode="numeric" pattern="[0-9]*" className="bg-[#0B0F19] border border-gray-700 w-16 text-sm rounded px-2 py-2 text-center" value={editForm.quantidade} onChange={(e) => setEditForm({...editForm, quantidade: e.target.value})} /></td>
-                                <td className="p-3">
-                                  <select className="bg-[#0B0F19] border border-gray-700 w-full text-sm rounded px-2 py-2 mb-1 block" value={editForm.local} onChange={(e) => setEditForm({...editForm, local: e.target.value})}>
-                                    {listaLocais.map(l => <option key={l} value={l}>{l}</option>)}
-                                  </select>
-                                </td>
-                                <td className="p-3"><input type="number" step="0.01" inputMode="decimal" className="bg-[#0B0F19] border border-gray-700 w-24 text-sm rounded px-2 py-2" value={editForm.preco_unitario} onChange={(e) => setEditForm({...editForm, preco_unitario: e.target.value})} /></td>
+                                <td className="p-3"><input type="text" className="bg-[#0B0F19] border border-gray-700 w-full min-w-[100px] text-sm rounded px-3 py-2" value={editForm.item} onChange={(e) => setEditForm({...editForm, item: e.target.value})} /></td>
+                                <td className="p-3"><input type="number" className="bg-[#0B0F19] border border-gray-700 w-16 text-sm rounded px-2 py-2 text-center" value={editForm.quantidade} onChange={(e) => setEditForm({...editForm, quantidade: e.target.value})} /></td>
+                                <td className="p-3"><input type="date" className="bg-[#0B0F19] border border-gray-700 w-32 text-sm rounded px-2 py-2" value={editForm.validade || ''} onChange={(e) => setEditForm({...editForm, validade: e.target.value})} /></td>
+                                <td className="p-3"><select className="bg-[#0B0F19] border border-gray-700 w-full text-sm rounded px-2 py-2" value={editForm.local} onChange={(e) => setEditForm({...editForm, local: e.target.value})}>{listaLocais.map(l => <option key={l} value={l}>{l}</option>)}</select></td>
+                                <td className="p-3"><input type="number" step="0.01" className="bg-[#0B0F19] border border-gray-700 w-24 text-sm rounded px-2 py-2" value={editForm.preco_unitario} onChange={(e) => setEditForm({...editForm, preco_unitario: e.target.value})} /></td>
                                 <td className="p-3">
                                   <div className="flex gap-2 justify-end">
-                                    <button onClick={salvarEdicao} className="text-green-400 font-bold bg-green-900/20 px-4 py-2 rounded-lg">Ok</button>
-                                    <button onClick={cancelarEdicao} className="text-gray-400 bg-gray-800 px-4 py-2 rounded-lg">X</button>
+                                    <button onClick={salvarEdicao} className="text-green-400 font-bold bg-green-900/20 px-3 py-1 rounded-lg">Ok</button>
+                                    <button onClick={cancelarEdicao} className="text-gray-400 bg-gray-800 px-3 py-1 rounded-lg">X</button>
                                   </div>
                                 </td>
                               </>
@@ -451,43 +374,54 @@ export default function GestaoDespensa() {
                               <>
                                 <td className="p-4 font-medium text-gray-200 text-sm md:text-base">{item.item}</td>
                                 <td className="p-4 text-gray-400 font-medium">{item.quantidade} <span className="text-[10px] text-gray-600">un</span></td>
+                                <td className="p-4">
+                                  {alerta ? (
+                                    <span className={`px-2 py-1 rounded text-[11px] whitespace-nowrap ${alerta.estilo}`}>{alerta.msg}</span>
+                                  ) : (
+                                    <span className="text-gray-600 text-[10px]">-</span>
+                                  )}
+                                </td>
                                 <td className="p-4"><span className="text-gray-500 text-xs block">{item.local}</span><span className="text-gray-400 text-xs">{item.categoria}</span></td>
                                 <td className="p-4 text-green-400 whitespace-nowrap font-medium">R$ {Number(item.preco_unitario || 0).toFixed(2)}</td>
                                 <td className="p-4">
-                                  <div className="flex items-center justify-end gap-4">
-                                    <button onClick={() => iniciarEdicao(item)} className="text-blue-400 text-sm font-medium py-2 px-1 hover:text-blue-300">Editar</button>
+                                  <div className="flex items-center justify-end gap-3">
+                                    <button onClick={() => iniciarEdicao(item)} className="text-blue-400 text-sm font-medium py-2 hover:text-blue-300">Editar</button>
                                     <button onClick={() => darBaixaDespensa(item)} className="text-red-400 text-sm font-bold bg-red-900/20 hover:bg-red-900/40 px-3 py-2 rounded-lg transition-colors">Excluir</button>
                                   </div>
                                 </td>
                               </>
                             )}
                           </tr>
-                        ))}
+                        )})}
                       </tbody>
                     </table>
                   </div>
                 </div>
 
                 <div className="md:hidden space-y-4">
-                  {loading ? ( <div className="text-center py-8 text-gray-500">A carregar...</div> ) : itens.map((item) => (
-                    <div key={item.id} className="bg-[#111827] border border-gray-800 rounded-xl p-4 shadow-sm">
+                  {loading ? ( <div className="text-center py-8 text-gray-500">A carregar...</div> ) : itens.map((item) => {
+                    const alerta = avaliarAlertaValidade(item.validade);
+                    
+                    return (
+                    <div key={item.id} className="bg-[#111827] border border-gray-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                      {alerta && alerta.msg.includes('Venc') && (
+                        <div className={`absolute top-0 left-0 right-0 h-1.5 ${alerta.msg.includes('Vencido') ? 'bg-red-600 animate-pulse' : 'bg-orange-500'}`}></div>
+                      )}
+                      
                       {editingId === item.id ? (
-                        <div className="space-y-4">
+                        <div className="space-y-4 pt-2">
                           <div>
                              <label className="text-[10px] text-gray-500 uppercase font-bold">Produto</label>
                              <input type="text" className="w-full bg-[#0B0F19] border border-gray-700 rounded-lg px-3 py-2 text-white font-bold" value={editForm.item} onChange={(e) => setEditForm({...editForm, item: e.target.value})} />
                           </div>
-                          <div className="flex gap-3">
-                            <div className="w-1/3">
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="col-span-1">
                                <label className="text-[10px] text-gray-500 uppercase font-bold">Qtd</label>
                                <input type="number" inputMode="numeric" pattern="[0-9]*" className="w-full bg-[#0B0F19] border border-gray-700 rounded-lg px-3 py-2 text-white font-bold text-center" value={editForm.quantidade} onChange={(e) => setEditForm({...editForm, quantidade: e.target.value})} />
                             </div>
-                            <div className="w-2/3">
-                               <label className="text-[10px] text-gray-500 uppercase font-bold">Preço</label>
-                               <div className="relative">
-                                  <span className="absolute left-3 top-2.5 text-gray-500 text-sm">R$</span>
-                                  <input type="text" inputMode="decimal" className="w-full bg-[#0B0F19] border border-gray-700 rounded-lg pl-8 pr-3 py-2 text-white font-bold" value={editForm.preco_unitario} onChange={(e) => setEditForm({...editForm, preco_unitario: e.target.value})} />
-                               </div>
+                            <div className="col-span-2">
+                               <label className="text-[10px] text-gray-500 uppercase font-bold">Validade</label>
+                               <input type="date" className="w-full bg-[#0B0F19] border border-gray-700 rounded-lg px-3 py-2 text-white text-sm" value={editForm.validade || ''} onChange={(e) => setEditForm({...editForm, validade: e.target.value})} />
                             </div>
                           </div>
                           <div className="flex gap-3">
@@ -509,44 +443,34 @@ export default function GestaoDespensa() {
                         </div>
                       ) : (
                         <>
-                          <div className="flex justify-between items-center">
+                          <div className="flex justify-between items-start mt-1">
                             <div className="flex-1 pr-2">
                               <span className="font-bold text-gray-200 block text-lg truncate">{item.item}</span>
-                              <span className="text-gray-400 font-medium">{item.quantidade} <span className="text-gray-600 text-[10px]">unidades</span></span>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-gray-400 font-medium">{item.quantidade} <span className="text-gray-600 text-[10px]">unidades</span></span>
+                                {alerta && (
+                                  <span className={`px-2 py-0.5 rounded text-[10px] ${alerta.estilo}`}>{alerta.msg}</span>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <button onClick={() => darBaixaDespensa(item)} className="flex items-center justify-center w-10 h-10 bg-red-900/20 hover:bg-red-900/40 text-red-500 rounded-xl transition-colors active:scale-95 text-lg" aria-label="Excluir">
-                                🗑️
-                              </button>
-                              <button onClick={() => iniciarEdicao(item)} className="flex items-center justify-center w-10 h-10 bg-blue-900/20 hover:bg-blue-900/40 text-blue-400 rounded-xl transition-colors active:scale-95 text-lg" aria-label="Editar">
-                                ✏️
-                              </button>
-                              <button onClick={() => setExpandedInvId(expandedInvId === item.id ? null : item.id)} className="flex items-center justify-center w-10 h-10 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl transition-colors active:scale-95 text-lg" aria-label="Expandir">
-                                {expandedInvId === item.id ? '🔼' : '🔽'}
-                              </button>
+                            <div className="flex items-center gap-2 mt-1">
+                              <button onClick={() => darBaixaDespensa(item)} className="flex items-center justify-center w-10 h-10 bg-red-900/20 hover:bg-red-900/40 text-red-500 rounded-xl transition-colors active:scale-95 text-lg" aria-label="Excluir">🗑️</button>
+                              <button onClick={() => iniciarEdicao(item)} className="flex items-center justify-center w-10 h-10 bg-blue-900/20 hover:bg-blue-900/40 text-blue-400 rounded-xl transition-colors active:scale-95 text-lg" aria-label="Editar">✏️</button>
+                              <button onClick={() => setExpandedInvId(expandedInvId === item.id ? null : item.id)} className="flex items-center justify-center w-10 h-10 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl transition-colors active:scale-95 text-lg" aria-label="Expandir">{expandedInvId === item.id ? '🔼' : '🔽'}</button>
                             </div>
                           </div>
                           
                           {expandedInvId === item.id && (
                             <div className="mt-4 pt-4 border-t border-gray-800/50 grid grid-cols-3 gap-2">
-                               <div>
-                                 <span className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider">Local</span>
-                                 <span className="text-gray-300 text-xs font-medium">{item.local}</span>
-                               </div>
-                               <div>
-                                 <span className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider">Categoria</span>
-                                 <span className="text-gray-300 text-xs font-medium">{item.categoria}</span>
-                               </div>
-                               <div className="text-right">
-                                 <span className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider">Preço</span>
-                                 <span className="text-green-400 font-black text-sm">R$ {Number(item.preco_unitario || 0).toFixed(2)}</span>
-                               </div>
+                               <div><span className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider">Local</span><span className="text-gray-300 text-xs font-medium">{item.local}</span></div>
+                               <div><span className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider">Categoria</span><span className="text-gray-300 text-xs font-medium">{item.categoria}</span></div>
+                               <div className="text-right"><span className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider">Preço</span><span className="text-green-400 font-black text-sm">R$ {Number(item.preco_unitario || 0).toFixed(2)}</span></div>
                             </div>
                           )}
                         </>
                       )}
                     </div>
-                  ))}
+                  )})}
                 </div>
 
               </div>
@@ -560,7 +484,6 @@ export default function GestaoDespensa() {
                 +
               </button>
             )}
-
           </div>
         )}
 
@@ -570,49 +493,24 @@ export default function GestaoDespensa() {
               <div><h2 className="text-2xl font-bold text-orange-400">Calculadora de Compras</h2></div>
               <div className="flex items-end gap-6">
                 <div className="text-right"><span className="text-gray-400 text-sm block mb-1">TOTAL DO CARRINHO</span><span className="text-4xl font-black text-white">R$ {totalCarrinho.toFixed(2)}</span></div>
-                <button onClick={abrirCheckout} disabled={itensComPreco === 0} className={`px-8 py-4 rounded-xl font-bold transition-all shadow-lg text-lg ${itensComPreco > 0 ? 'bg-green-600 hover:bg-green-500 text-white transform hover:scale-105' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}>
-                  Checkout ({itensComPreco})
-                </button>
+                <button onClick={abrirCheckout} disabled={itensComPreco === 0} className={`px-8 py-4 rounded-xl font-bold transition-all shadow-lg text-lg ${itensComPreco > 0 ? 'bg-green-600 hover:bg-green-500 text-white transform hover:scale-105' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}>Checkout ({itensComPreco})</button>
               </div>
             </div>
-
+            
             <div className="bg-[#111827] md:border border-gray-800 rounded-xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto w-full">
                 <table className="w-full text-left border-collapse min-w-full">
-                  <thead>
-                    <tr className="border-b border-gray-800 text-[9px] md:text-xs text-gray-400 bg-gray-900/50">
-                      <th className="p-2 md:p-4 uppercase">Item</th>
-                      <th className="p-2 md:p-4 uppercase text-center border-l border-gray-800/30">Últ.</th>
-                      <th className="p-2 md:p-4 uppercase text-center border-r border-gray-800/30">Méd.</th>
-                      <th className="p-2 md:p-4 uppercase text-blue-400 text-center w-12 md:w-24">Qtd</th>
-                      <th className="p-2 md:p-4 uppercase text-blue-400 text-center w-24 md:w-40">Preço</th>
-                      <th className="p-2 md:p-4 text-right"></th>
-                    </tr>
-                  </thead>
+                  <thead><tr className="border-b border-gray-800 text-[9px] md:text-xs text-gray-400 bg-gray-900/50"><th className="p-2 md:p-4 uppercase">Item</th><th className="p-2 md:p-4 uppercase text-center border-l border-gray-800/30">Últ.</th><th className="p-2 md:p-4 uppercase text-center border-r border-gray-800/30">Méd.</th><th className="p-2 md:p-4 uppercase text-blue-400 text-center w-12 md:w-24">Qtd</th><th className="p-2 md:p-4 uppercase text-blue-400 text-center w-24 md:w-40">Preço</th><th className="p-2 md:p-4 text-right"></th></tr></thead>
                   <tbody>
-                    {compras.length === 0 ? (
-                      <tr><td colSpan={6} className="text-center py-12 text-gray-500">O carrinho está vazio.</td></tr>
-                    ) : (
+                    {compras.length === 0 ? (<tr><td colSpan={6} className="text-center py-12 text-gray-500">O carrinho está vazio.</td></tr>) : (
                       compras.map((compra) => (
                         <tr key={compra.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
-                          <td className="p-2 md:p-4">
-                            <span className="font-bold text-orange-100 block text-xs md:text-lg truncate max-w-[80px] md:max-w-none">{compra.item}</span>
-                            <span className="text-gray-500 text-[9px] md:text-xs uppercase tracking-wider hidden sm:block">{compra.categoria}</span>
-                          </td>
+                          <td className="p-2 md:p-4"><span className="font-bold text-orange-100 block text-xs md:text-lg truncate max-w-[80px] md:max-w-none">{compra.item}</span><span className="text-gray-500 text-[9px] md:text-xs uppercase tracking-wider hidden sm:block">{compra.categoria}</span></td>
                           <td className="p-2 md:p-4 text-center bg-gray-800/10 text-gray-400 text-[10px] md:text-sm font-medium border-l border-gray-800/30">R$ {compra.ultimo_preco.toFixed(2)}</td>
                           <td className="p-2 md:p-4 text-center bg-gray-800/10 text-gray-400 text-[10px] md:text-sm font-medium border-r border-gray-800/30">R$ {compra.preco_medio.toFixed(2)}</td>
-                          <td className="p-2 md:p-4 text-center">
-                            <input type="number" inputMode="numeric" pattern="[0-9]*" min="1" value={compra.qtd_compra} onChange={(e) => atualizarCarrinho(compra.id, 'qtd_compra', e.target.value)} className="w-10 md:w-16 bg-[#0B0F19] border border-blue-900/50 text-white font-bold px-1 py-2 md:py-2 rounded md:rounded-lg text-center text-xs md:text-base outline-none focus:border-blue-500 transition-colors" />
-                          </td>
-                          <td className="p-2 md:p-4">
-                            <div className="relative flex items-center">
-                              <span className="absolute left-1 md:left-3 text-gray-500 text-[10px] md:text-sm font-bold">R$</span>
-                              <input type="text" inputMode="decimal" placeholder="0.00" value={compra.preco_compra} onChange={(e) => atualizarCarrinho(compra.id, 'preco_compra', e.target.value)} className={`w-full bg-[#0B0F19] border text-white font-bold pl-5 md:pl-8 pr-1 py-2 md:py-2 rounded md:rounded-lg text-center text-xs md:text-base focus:outline-none transition-colors ${parseFloat(String(compra.preco_compra).replace(',', '.')) > 0 ? 'border-green-500 bg-green-900/10' : 'border-blue-900/50 focus:border-blue-500'}`} />
-                            </div>
-                          </td>
-                          <td className="p-1 md:p-4 text-right">
-                            <button onClick={() => apagarDaLista(compra.id)} className="text-red-500/70 hover:text-red-400 p-1 md:p-2 text-lg md:text-xl font-bold">×</button>
-                          </td>
+                          <td className="p-2 md:p-4 text-center"><input type="number" inputMode="numeric" pattern="[0-9]*" min="1" value={compra.qtd_compra} onChange={(e) => atualizarCarrinho(compra.id, 'qtd_compra', e.target.value)} className="w-10 md:w-16 bg-[#0B0F19] border border-blue-900/50 text-white font-bold px-1 py-2 md:py-2 rounded md:rounded-lg text-center text-xs md:text-base outline-none focus:border-blue-500 transition-colors" /></td>
+                          <td className="p-2 md:p-4"><div className="relative flex items-center"><span className="absolute left-1 md:left-3 text-gray-500 text-[10px] md:text-sm font-bold">R$</span><input type="text" inputMode="decimal" placeholder="0.00" value={compra.preco_compra} onChange={(e) => atualizarCarrinho(compra.id, 'preco_compra', e.target.value)} className={`w-full bg-[#0B0F19] border text-white font-bold pl-5 md:pl-8 pr-1 py-2 md:py-2 rounded md:rounded-lg text-center text-xs md:text-base focus:outline-none transition-colors ${parseFloat(String(compra.preco_compra).replace(',', '.')) > 0 ? 'border-green-500 bg-green-900/10' : 'border-blue-900/50 focus:border-blue-500'}`} /></div></td>
+                          <td className="p-1 md:p-4 text-right"><button onClick={() => apagarDaLista(compra.id)} className="text-red-500/70 hover:text-red-400 p-1 md:p-2 text-lg md:text-xl font-bold">×</button></td>
                         </tr>
                       ))
                     )}
@@ -622,13 +520,8 @@ export default function GestaoDespensa() {
             </div>
 
             <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#0B0F19]/95 backdrop-blur-md border-t border-gray-800 p-4 z-40 flex justify-between items-center shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
-               <div>
-                 <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Total Carrinho</span>
-                 <span className="text-2xl font-black text-white">R$ {totalCarrinho.toFixed(2)}</span>
-               </div>
-               <button onClick={abrirCheckout} disabled={itensComPreco === 0} className={`px-6 py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-all shadow-lg ${itensComPreco > 0 ? 'bg-green-600 text-white active:scale-95' : 'bg-gray-800 text-gray-600'}`}>
-                  Checkout ({itensComPreco})
-               </button>
+               <div><span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Total Carrinho</span><span className="text-2xl font-black text-white">R$ {totalCarrinho.toFixed(2)}</span></div>
+               <button onClick={abrirCheckout} disabled={itensComPreco === 0} className={`px-6 py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-all shadow-lg ${itensComPreco > 0 ? 'bg-green-600 text-white active:scale-95' : 'bg-gray-800 text-gray-600'}`}>Checkout ({itensComPreco})</button>
             </div>
           </div>
         )}
@@ -636,109 +529,27 @@ export default function GestaoDespensa() {
         {abaAtiva === 'historico' && (
           <div className="max-w-4xl mx-auto space-y-6 md:pb-10 pb-4">
             <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-              <div>
-                <h2 className="text-xl md:text-2xl font-bold text-purple-400">Histórico Tático de Compras</h2>
-                <p className="text-gray-400 text-xs md:text-sm mt-1">Registo absoluto das operações financeiras.</p>
-              </div>
-              <div className="w-full sm:w-72 relative">
-                <span className="absolute left-4 top-3.5 md:top-2.5 text-gray-500">🔍</span>
-                <input 
-                  type="text" 
-                  placeholder="Procurar loja, pessoa..." 
-                  value={buscaHistorico} 
-                  onChange={(e) => setBuscaHistorico(e.target.value)}
-                  className="w-full bg-[#111827] border border-gray-700 rounded-xl md:rounded-lg pl-11 pr-4 py-3 md:py-2 text-white focus:outline-none focus:border-purple-500 shadow-sm" 
-                />
-              </div>
+              <div><h2 className="text-xl md:text-2xl font-bold text-purple-400">Histórico Tático de Compras</h2><p className="text-gray-400 text-xs md:text-sm mt-1">Registo absoluto das operações financeiras.</p></div>
+              <div className="w-full sm:w-72 relative"><span className="absolute left-4 top-3.5 md:top-2.5 text-gray-500">🔍</span><input type="text" placeholder="Procurar loja, pessoa..." value={buscaHistorico} onChange={(e) => setBuscaHistorico(e.target.value)} className="w-full bg-[#111827] border border-gray-700 rounded-xl md:rounded-lg pl-11 pr-4 py-3 md:py-2 text-white focus:outline-none focus:border-purple-500 shadow-sm" /></div>
             </header>
-
             <div className="space-y-4">
-              {historicoFiltrado.length === 0 ? (
-                <div className="text-center py-16 text-gray-500 bg-[#111827] rounded-xl border border-gray-800">
-                  Nenhum registo de compras encontrado.
-                </div>
-              ) : (
+              {historicoFiltrado.length === 0 ? (<div className="text-center py-16 text-gray-500 bg-[#111827] rounded-xl border border-gray-800">Nenhum registo de compras encontrado.</div>) : (
                 historicoFiltrado.map((h) => {
-                  let itensParsed = [];
-                  try { itensParsed = typeof h.itens === 'string' ? JSON.parse(h.itens) : h.itens; } catch(e) {}
-                  
+                  let itensParsed = []; try { itensParsed = typeof h.itens === 'string' ? JSON.parse(h.itens) : h.itens; } catch(e) {}
                   const isExpanded = expandedId === h.id;
-
                   return (
                     <div key={h.id} className="bg-[#111827] border border-gray-800 rounded-xl overflow-hidden transition-all duration-300 shadow-sm">
-                      
-                      <div 
-                        onClick={() => setExpandedId(isExpanded ? null : h.id)}
-                        className="p-4 md:p-5 cursor-pointer active:bg-gray-800/60 hover:bg-gray-800/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-                      >
-                        <div className="flex items-center gap-3 md:gap-4 w-full sm:w-auto">
-                          <div className="bg-purple-900/30 p-3 md:p-4 rounded-xl text-purple-400 text-xl md:text-2xl">🛒</div>
-                          <div>
-                            <h3 className="text-base md:text-lg font-bold text-white truncate max-w-[220px] md:max-w-xs">{h.estabelecimento || 'Loja Desconhecida'}</h3>
-                            <span className="text-gray-500 text-xs md:text-sm font-medium">{h.data_hora}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between w-full sm:w-auto gap-4 md:gap-8 border-t border-gray-800/50 sm:border-0 pt-3 sm:pt-0 mt-1 sm:mt-0">
-                          <div className="text-left sm:text-right">
-                            <span className="block text-[10px] md:text-xs text-gray-500 uppercase font-bold tracking-wider">Metódo / Resp.</span>
-                            <span className="text-gray-300 text-xs md:text-sm font-medium">{h.forma_pagamento} • {h.responsavel}</span>
-                          </div>
-                          
-                          <div className="text-right flex items-center gap-4">
-                            <div>
-                              <span className="block text-[10px] md:text-xs text-gray-500 uppercase font-bold tracking-wider">Total</span>
-                              <span className="text-lg md:text-xl font-black text-white whitespace-nowrap">R$ {Number(h.valor_total).toFixed(2)}</span>
-                            </div>
-                            <div className="text-gray-600 bg-gray-900/50 p-2 rounded-lg">
-                              {isExpanded ? '▲' : '▼'}
-                            </div>
-                          </div>
-                        </div>
+                      <div onClick={() => setExpandedId(isExpanded ? null : h.id)} className="p-4 md:p-5 cursor-pointer active:bg-gray-800/60 hover:bg-gray-800/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 md:gap-4 w-full sm:w-auto"><div className="bg-purple-900/30 p-3 md:p-4 rounded-xl text-purple-400 text-xl md:text-2xl">🛒</div><div><h3 className="text-base md:text-lg font-bold text-white truncate max-w-[220px] md:max-w-xs">{h.estabelecimento || 'Loja Desconhecida'}</h3><span className="text-gray-500 text-xs md:text-sm font-medium">{h.data_hora}</span></div></div>
+                        <div className="flex items-center justify-between w-full sm:w-auto gap-4 md:gap-8 border-t border-gray-800/50 sm:border-0 pt-3 sm:pt-0 mt-1 sm:mt-0"><div className="text-left sm:text-right"><span className="block text-[10px] md:text-xs text-gray-500 uppercase font-bold tracking-wider">Metódo / Resp.</span><span className="text-gray-300 text-xs md:text-sm font-medium">{h.forma_pagamento} • {h.responsavel}</span></div><div className="text-right flex items-center gap-4"><div><span className="block text-[10px] md:text-xs text-gray-500 uppercase font-bold tracking-wider">Total</span><span className="text-lg md:text-xl font-black text-white whitespace-nowrap">R$ {Number(h.valor_total).toFixed(2)}</span></div><div className="text-gray-600 bg-gray-900/50 p-2 rounded-lg">{isExpanded ? '▲' : '▼'}</div></div></div>
                       </div>
-
                       {isExpanded && (
                         <div className="border-t border-gray-800 bg-[#0B0F19] p-4 md:p-5">
-                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
-                             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Detalhamento ({itensParsed.length})</h4>
-                             
-                             <div className="flex gap-2 w-full sm:w-auto">
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    alert("Modo de edição do histórico a ser integrado. Edita na Despensa por enquanto.");
-                                  }} 
-                                  className="flex-1 sm:flex-none bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-900/50 px-4 py-3 sm:py-2 rounded-lg font-bold text-sm transition active:scale-95"
-                                >
-                                  Editar
-                                </button>
-                                <button 
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    const confirmar = window.confirm("Certeza que desejas apagar este registo tático?");
-                                    if (confirmar) {
-                                      await supabase.from('compras_realizadas').delete().eq('id', h.id);
-                                      buscarHistorico();
-                                    }
-                                  }} 
-                                  className="flex-1 sm:flex-none bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-900/50 px-4 py-3 sm:py-2 rounded-lg font-bold text-sm transition active:scale-95"
-                                >
-                                  Apagar
-                                </button>
-                             </div>
-                          </div>
-
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                             {itensParsed.map((itemObj: any, idx: number) => (
                               <div key={idx} className="flex justify-between items-center bg-[#111827] p-4 md:p-3 rounded-xl border border-gray-800/50 shadow-sm">
-                                <div>
-                                  <span className="text-gray-200 font-bold block text-sm md:text-base mb-0.5">{itemObj.item}</span>
-                                  <span className="text-gray-500 text-[10px] md:text-xs font-medium uppercase tracking-wider">{itemObj.quantidade} un • {itemObj.categoria}</span>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-green-400 font-black block text-sm md:text-base">R$ {Number(itemObj.preco_unitario).toFixed(2)}</span>
-                                  <span className="text-gray-600 text-[10px] md:text-xs font-bold block mt-0.5">R$ {(itemObj.quantidade * itemObj.preco_unitario).toFixed(2)} total</span>
-                                </div>
+                                <div><span className="text-gray-200 font-bold block text-sm md:text-base mb-0.5">{itemObj.item}</span><span className="text-gray-500 text-[10px] md:text-xs font-medium uppercase tracking-wider">{itemObj.quantidade} un • {itemObj.categoria}</span></div>
+                                <div className="text-right"><span className="text-green-400 font-black block text-sm md:text-base">R$ {Number(itemObj.preco_unitario).toFixed(2)}</span><span className="text-gray-600 text-[10px] md:text-xs font-bold block mt-0.5">R$ {(itemObj.quantidade * itemObj.preco_unitario).toFixed(2)} total</span></div>
                               </div>
                             ))}
                           </div>
@@ -751,7 +562,6 @@ export default function GestaoDespensa() {
             </div>
           </div>
         )}
-
       </main>
     </div>
   );
