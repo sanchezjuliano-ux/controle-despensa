@@ -68,6 +68,12 @@ export default function Home() {
     return { menor, media };
   }
 
+  // Calculadora de Compras: Soma o preço atual de todos os itens da lista que foram preenchidos
+  const totalCalculadoraCompras = listaCompras.reduce((acc, c) => {
+    const val = parseFloat(precosAtuais[c.id]) || 0;
+    return acc + val;
+  }, 0);
+
   async function enviarAlertaTelegram(mensagem: string) {
     try {
       await fetch('/api/telegram', {
@@ -315,7 +321,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row font-sans">
-      {/* BARRA LATERAL FIXA E BLINDADA CONTRA DESCONFIGURAÇÃO */}
       <aside className="w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 p-3 md:p-5 flex flex-col md:justify-between shrink-0">
         <div className="flex flex-col md:flex-col justify-between w-full">
           <div className="flex items-center gap-2 mb-2 md:mb-6">
@@ -669,7 +674,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* GUIA 2: LISTA DE COMPRAS EM APENAS UMA LINHA POR ITEM */}
+        {/* GUIA 2: LISTA DE COMPRAS COM CALCULADORA E VISTA OTIMIZADA PARA TELEMÓVEL */}
         {activeTab === 'compras' && (
           <div className="space-y-6">
             <input 
@@ -681,48 +686,67 @@ export default function Home() {
               className="hidden" 
             />
 
+            {/* PAINEL CALCULADORA DE COMPRAS (Soma total em tempo real) */}
+            <div className="bg-gradient-to-r from-amber-950/80 to-slate-900 border border-amber-800/80 rounded-2xl p-4 md:p-6 shadow-xl flex justify-between items-center">
+              <div>
+                <p className="text-xs text-amber-400 font-semibold uppercase tracking-wider">Calculadora do Carrinho</p>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-100 mt-0.5">
+                  R$ {totalCalculadoraCompras.toFixed(2)}
+                </h3>
+              </div>
+              <div className="text-right">
+                <span className="text-xs bg-amber-900/50 text-amber-300 border border-amber-700 px-3 py-1 rounded-full font-medium">
+                  {listaCompras.length} {listaCompras.length === 1 ? 'item pendente' : 'itens pendentes'}
+                </span>
+              </div>
+            </div>
+
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl">
               <h2 className="text-xl font-bold text-amber-400 mb-4">🛒 Lista de Compras (Itens Esgotados)</h2>
               
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {listaCompras.map(c => {
                   const { menor, media } = calcularEstatisticasPreco(c.item);
                   const precoAtualVal = precosAtuais[c.id] || '';
 
                   return (
-                    <div key={c.id} className="bg-slate-950 border border-slate-800 p-3 rounded-xl flex flex-col md:flex-row items-center justify-between gap-3 shadow">
+                    <div key={c.id} className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl space-y-2.5 shadow">
                       
-                      {/* Nome do Item */}
-                      <div className="flex items-center justify-between w-md md:w-auto min-w-0 flex-1">
-                        <span className="font-semibold text-sm text-slate-100 truncate">❌ {c.item}</span>
-                        <span className="text-[10px] text-amber-500 bg-amber-950/40 border border-amber-900 px-2 py-0.5 rounded-full font-medium ml-2">Pendente</span>
+                      {/* Linha 1: Nome do Item e Badge */}
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-sm text-slate-100 truncate pr-2">❌ {c.item}</span>
+                        <span className="text-[10px] text-amber-500 bg-amber-950/40 border border-amber-900 px-2.5 py-0.5 rounded-full font-medium shrink-0">Pendente</span>
                       </div>
 
-                      {/* Três Preços e Input Integrados numa Linha */}
-                      <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                      {/* Linha 2: Os Três Preços e Botão de Leitura de Etiqueta com IA */}
+                      <div className="grid grid-cols-4 gap-1.5 items-center">
                         
                         {/* Menor Preço */}
-                        <div className="bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 text-center shrink-0">
-                          <span className="block text-[10px] text-slate-400">Menor</span>
-                          <span className="font-bold text-emerald-400 text-xs">{menor > 0 ? `R$ ${menor.toFixed(2)}` : 'N/D'}</span>
+                        <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center">
+                          <span className="block text-[9px] text-slate-400">Menor</span>
+                          <span className="font-bold text-emerald-400 text-[11px] truncate block">
+                            {menor > 0 ? `R$ ${menor.toFixed(2)}` : 'N/D'}
+                          </span>
                         </div>
 
                         {/* Preço Médio */}
-                        <div className="bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 text-center shrink-0">
-                          <span className="block text-[10px] text-slate-400">Médio</span>
-                          <span className="font-bold text-blue-400 text-xs">{media > 0 ? `R$ ${media.toFixed(2)}` : 'N/D'}</span>
+                        <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center">
+                          <span className="block text-[9px] text-slate-400">Médio</span>
+                          <span className="font-bold text-blue-400 text-[11px] truncate block">
+                            {media > 0 ? `R$ ${media.toFixed(2)}` : 'N/D'}
+                          </span>
                         </div>
 
                         {/* Input de Preço Atual */}
-                        <div className="relative w-28 shrink-0">
-                          <span className="absolute left-2.5 top-1.5 text-[10px] text-slate-400">R$</span>
+                        <div className="relative">
+                          <span className="absolute left-1.5 top-1.5 text-[9px] text-slate-400">R$</span>
                           <input 
                             type="number" 
                             step="0.01" 
                             value={precoAtualVal} 
                             onChange={(e) => setPrecosAtuais({ ...precosAtuais, [c.id]: e.target.value })}
                             placeholder="Atual" 
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-7 pr-2 py-1 text-xs focus:border-amber-500 outline-none text-slate-200"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-slate-200 text-center font-bold"
                           />
                         </div>
 
@@ -734,7 +758,7 @@ export default function Home() {
                             comprasFileInputRef.current?.click();
                           }}
                           disabled={loadingIA}
-                          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 shadow transition disabled:opacity-50 shrink-0"
+                          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-1.5 px-2 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 shadow transition disabled:opacity-50 h-full"
                           title="Ler etiqueta de preço com IA"
                         >
                           {loadingIA && comprasFileId === c.id ? '⏳' : '📸 Ler'}
