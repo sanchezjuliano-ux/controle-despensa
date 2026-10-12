@@ -12,8 +12,8 @@ const bot = new Telegraf(token);
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-// CÉREBRO PRINCIPAL: Gemini 2.5 Flash oficial e estável detetado na API
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+// CÉREBRO PRINCIPAL: Gemini 3.8 Flash (modelo atual recomendado pela API)
+const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
 
 async function processarOrdem(ctx, texto) {
   const responsavel = ctx.from.first_name || 'Família';
