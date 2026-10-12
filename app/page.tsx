@@ -16,7 +16,6 @@ export default function Home() {
   const [loadingIA, setLoadingIA] = useState(false);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
-  // Estados de busca por página
   const [buscaDespensa, setBuscaDespensa] = useState('');
   const [buscaCompras, setBuscaCompras] = useState('');
   const [buscaHistorico, setBuscaHistorico] = useState('');
@@ -401,7 +400,6 @@ export default function Home() {
     setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Itens filtrados pelas buscas
   const inventarioFiltrado = inventario.filter(prod => 
     prod.item.toLowerCase().includes(buscaDespensa.toLowerCase()) ||
     (prod.categoria && prod.categoria.toLowerCase().includes(buscaDespensa.toLowerCase())) ||
@@ -470,7 +468,6 @@ export default function Home() {
 
       <main className="flex-1 p-4 md:p-8 overflow-y-auto max-w-5xl">
         
-        {/* GUIA 1: DESPENSA */}
         {activeTab === 'despensa' && (
           <div className="space-y-6">
             
@@ -639,7 +636,6 @@ export default function Home() {
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
                 <h2 className="text-xl font-bold text-emerald-400">Inventário Atual</h2>
-                {/* BARRA DE PESQUISA DA DESPENSA */}
                 <div className="w-full sm:w-72">
                   <input 
                     type="text" 
@@ -651,7 +647,6 @@ export default function Home() {
                 </div>
               </div>
               
-              {/* VISTA DE TELEMÓVEL (<768px) */}
               <div className="block md:hidden space-y-2.5">
                 {inventarioFiltrado.map(prod => {
                   const isExpanded = expandedItems[prod.id];
@@ -722,7 +717,6 @@ export default function Home() {
                 )}
               </div>
 
-              {/* VISTA DE PC (≥768px) */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
@@ -786,7 +780,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* GUIA 2: LISTA DE COMPRAS */}
+        {/* GUIA 2: LISTA DE COMPRAS OTIMIZADA COM PREÇOS INTEIROS E BOTÃO DE LER COMPACTO */}
         {activeTab === 'compras' && (
           <div className="space-y-6">
             <input 
@@ -822,7 +816,6 @@ export default function Home() {
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
                 <h2 className="text-xl font-bold text-amber-400">🛒 Lista de Compras (Itens Esgotados)</h2>
-                {/* BARRA DE PESQUISA DA LISTA DE COMPRAS */}
                 <div className="w-full sm:w-72">
                   <input 
                     type="text" 
@@ -848,37 +841,42 @@ export default function Home() {
                         <span className="text-[10px] text-amber-500 bg-amber-950/40 border border-amber-900 px-2.5 py-0.5 rounded-full font-medium shrink-0">Pendente</span>
                       </div>
 
-                      <div className="grid grid-cols-5 gap-1.5 items-center">
+                      {/* Grelha ajustada: Preços ganham mais espaço para mostrar o valor inteiro e botão Ler fica compacto */}
+                      <div className="grid grid-cols-[1fr_1fr_85px_55px_42px] gap-1.5 items-center">
                         
-                        <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center">
-                          <span className="block text-[9px] text-slate-400">Menor</span>
+                        {/* Menor Preço (Espaçoso para mostrar valor completo) */}
+                        <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center min-w-0">
+                          <span className="block text-[9px] text-slate-400 uppercase tracking-wider">Menor</span>
                           <span className="font-bold text-emerald-400 text-[11px] truncate block">
                             {menor > 0 ? `R$ ${menor.toFixed(2)}` : 'N/D'}
                           </span>
                         </div>
 
-                        <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center">
-                          <span className="block text-[9px] text-slate-400">Médio</span>
+                        {/* Preço Médio (Espaçoso para mostrar valor completo) */}
+                        <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center min-w-0">
+                          <span className="block text-[9px] text-slate-400 uppercase tracking-wider">Médio</span>
                           <span className="font-bold text-blue-400 text-[11px] truncate block">
                             {media > 0 ? `R$ ${media.toFixed(2)}` : 'N/D'}
                           </span>
                         </div>
 
+                        {/* Input Preço Atual */}
                         <div className="relative">
-                          <span className="absolute left-1 top-1.5 text-[9px] text-slate-400">R$</span>
+                          <span className="absolute left-1.5 top-2 text-[9px] text-slate-400">R$</span>
                           <input 
                             type="number" 
                             step="0.01" 
                             value={precoAtualVal} 
                             onChange={(e) => setPrecosAtuais({ ...precosAtuais, [c.id]: e.target.value })}
                             placeholder="Atual" 
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-4 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-slate-200 text-center font-bold"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-slate-200 text-center font-bold"
                             title="Preço Atual"
                           />
                         </div>
 
+                        {/* Input Quantidade */}
                         <div className="relative">
-                          <span className="absolute left-1 top-1.5 text-[9px] text-slate-400">Qtd</span>
+                          <span className="absolute left-1 top-2 text-[9px] text-slate-400">Qtd</span>
                           <input 
                             type="number" 
                             min="1"
@@ -890,6 +888,7 @@ export default function Home() {
                           />
                         </div>
 
+                        {/* Botão de Ler Compacto */}
                         <button
                           type="button"
                           onClick={() => {
@@ -897,10 +896,10 @@ export default function Home() {
                             comprasFileInputRef.current?.click();
                           }}
                           disabled={loadingIA}
-                          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-1.5 px-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 shadow transition disabled:opacity-50 h-full truncate"
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 px-1 rounded-lg text-[11px] font-semibold flex items-center justify-center shadow transition disabled:opacity-50 h-[31px]"
                           title="Ler etiqueta de preço com IA"
                         >
-                          {loadingIA && comprasFileId === c.id ? '⏳' : '📸 Ler'}
+                          {loadingIA && comprasFileId === c.id ? '⏳' : '📸'}
                         </button>
 
                       </div>
@@ -922,7 +921,6 @@ export default function Home() {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
               <h2 className="text-xl font-bold text-teal-400">📊 Histórico de Movimentações</h2>
-              {/* BARRA DE PESQUISA DO HISTÓRICO */}
               <div className="w-full sm:w-72">
                 <input 
                   type="text" 
