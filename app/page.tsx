@@ -11,10 +11,9 @@ const supabase = createClient(
 export default function Home() {
   const [inventario, setInventario] = useState<any[]>([]);
   const [listaCompras, setListaCompras] = useState<any[]>([]);
-  const [historico, setHistorico] = useState<any[]>([]);
   const [loadingIA, setLoadingIA] = useState(false);
 
-  // Estados do Formulário de Novo Lançamento
+  // Estados do Formulário
   const [item, setItem] = useState('');
   const [quantidade, setQuantidade] = useState(1);
   const [validade, setValidade] = useState('');
@@ -36,12 +35,9 @@ export default function Home() {
 
     const { data: comprasData } = await supabase.from('lista_compras').select('*').order('id', { ascending: false });
     if (comprasData) setListaCompras(comprasData);
-
-    const { data: historicoData } = await supabase.from('historico_movimentacoes').select('*').order('created_at', { ascending: false }).limit(20);
-    if (historicoData) setHistorico(historicoData);
   }
 
-  // Função para comprimir a imagem no navegador antes de enviar (Resolve o erro 413 Payload Too Large)
+  // Função para comprimir a imagem no browser (Evita o erro 413 Payload Too Large na Vercel)
   const comprimirImagem = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -53,7 +49,7 @@ export default function Home() {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          const maxDim = 800; // Limita a dimensão máxima para garantir leveza
+          const maxDim = 800; // Limita a resolução máxima para manter a imagem leve
 
           if (width > height) {
             if (width > maxDim) {
@@ -78,7 +74,7 @@ export default function Home() {
               else reject(new Error('Falha ao comprimir imagem'));
             },
             'image/jpeg',
-            0.75 // Qualidade de compressão de 75%
+            0.75 // Qualidade de compressão otimizada
           );
         };
         img.onerror = (error) => reject(error);
@@ -87,14 +83,13 @@ export default function Home() {
     });
   };
 
-  // Processar foto tirada no Painel Web com IA
   async function handleAnalisarEtiqueta(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setLoadingIA(true);
     try {
-      // Comprime a imagem antes do envio para evitar payload pesado
+      // Comprime a foto tirada pelo telemóvel antes de enviar
       const blobComprimido = await comprimirImagem(file);
       const formData = new FormData();
       formData.append('image', blobComprimido, 'etiqueta.jpg');
@@ -110,7 +105,7 @@ export default function Home() {
         setPreco(json.data.preco ? json.data.preco.toString() : '');
         setQuantidade(json.data.quantidade || 1);
         if (json.data.categoria) setCategoria(json.data.categoria);
-        alert('✨ Etiqueta lida com sucesso pela IA!');
+        alert('✨ Etiqueta lida com sucesso!');
       } else {
         alert('⚠️ ' + (json.error || 'Não foi possível extrair dados da etiqueta.'));
       }
@@ -131,7 +126,6 @@ export default function Home() {
     const qtdNum = parseInt(quantidade.toString()) || 1;
     const precoUnit = precoNum / qtdNum;
 
-    // Verificar se já existe no inventário para atualizar ou inserir
     const { data: existente } = await supabase.from('despensa').select('*').ilike('item', `%${item}%`);
 
     if (existente && existente.length > 0) {
@@ -152,7 +146,6 @@ export default function Home() {
       }]);
     }
 
-    // Regista no histórico de movimentações
     await supabase.from('historico_movimentacoes').insert([{
       item,
       tipo_movimento: 'entrada',
@@ -163,10 +156,8 @@ export default function Home() {
       metodo_pagamento: pagamento || 'Não informado'
     }]);
 
-    // Remove da lista de compras se lá estiver
     await supabase.from('lista_compras').delete().ilike('item', `%${item}%`);
 
-    // Limpar formulário
     setItem('');
     setQuantidade(1);
     setValidade('');
@@ -174,7 +165,7 @@ export default function Home() {
     setLoja('');
     setPagamento('');
     carregarDados();
-    alert('✅ Item guardado no stock com sucesso!');
+    alert('✅ Guardado no stock com sucesso!');
   }
 
   async function darBaixa(id: string, currentQtd: number, itemName: string) {
@@ -200,18 +191,20 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-4xl mx-auto font-sans">
-      <header className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
-        <h1 className="text-2xl font-bold flex items-center gap-2">📦 Controle Despensa</h1>
-        <span className="text-sm bg-emerald-950 text-emerald-400 border border-emerald-800 px-3 py-1 rounded-full">
+    <div className="min-h-screen bg-gray-950 text-gray-100 p-4 sm:p-6 max-w-4xl mx-auto">
+      <header className="flex justify-between items-center mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+          📦 Controle Despensa
+        </h1>
+        <span className="text-xs bg-emerald-900/60 text-emerald-400 border border-emerald-700 px-3 py-1 rounded-full">
           Online 24/7
         </span>
       </header>
 
-      {/* SECÇÃO DE NOVO LANÇAMENTO COM CÂMARA IA */}
-      <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6 shadow-lg">
+      {/* Formulário / Novo Lançamento com o teu layout original */}
+      <section className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6 mb-6 shadow-xl">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-emerald-400">Novo Lançamento / Entrada</h2>
+          <h2 className="text-lg font-semibold text-emerald-400">Novo Lançamento</h2>
           
           <div>
             <input 
@@ -226,68 +219,68 @@ export default function Home() {
               type="button" 
               onClick={() => fileInputRef.current?.click()} 
               disabled={loadingIA}
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow transition disabled:opacity-50"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow transition disabled:opacity-50"
             >
-              {loadingIA ? '⏳ A analisar...' : '📸 Ler Etiqueta com IA'}
+              {loadingIA ? '⏳ A ler...' : '📸 Ler Etiqueta'}
             </button>
           </div>
         </div>
 
-        <form onSubmit={handleGuardarStock} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={handleGuardarStock} className="space-y-4">
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Nome do Item</label>
+            <label className="block text-xs text-gray-400 mb-1">Item</label>
             <input 
               type="text" 
               value={item} 
               onChange={e => setItem(e.target.value)} 
-              placeholder="Ex: Fósforo Pinheiro" 
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
+              placeholder="Nome do produto" 
+              className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
               required 
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Quantidade</label>
+              <label className="block text-xs text-gray-400 mb-1">Quantidade</label>
               <input 
                 type="number" 
                 value={quantidade} 
                 onChange={e => setQuantidade(Number(e.target.value))} 
                 min="1" 
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
+                className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
                 required 
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Preço Total (R$)</label>
+              <label className="block text-xs text-gray-400 mb-1">Preço Total (R$)</label>
               <input 
                 type="number" 
                 step="0.01" 
                 value={preco} 
                 onChange={e => setPreco(e.target.value)} 
                 placeholder="0.00" 
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
+                className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Validade</label>
+            <label className="block text-xs text-gray-400 mb-1">Validade</label>
             <input 
               type="date" 
               value={validade} 
               onChange={e => setValidade(e.target.value)} 
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none text-slate-300" 
+              className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none text-gray-300" 
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Categoria</label>
+              <label className="block text-xs text-gray-400 mb-1">Categoria</label>
               <select 
                 value={categoria} 
                 onChange={e => setCategoria(e.target.value)} 
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none text-slate-300"
+                className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none text-gray-300"
               >
                 <option value="Mercearia">Mercearia</option>
                 <option value="Limpeza">Limpeza</option>
@@ -297,11 +290,11 @@ export default function Home() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Local</label>
+              <label className="block text-xs text-gray-400 mb-1">Local</label>
               <select 
                 value={local} 
                 onChange={e => setLocal(e.target.value)} 
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none text-slate-300"
+                className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none text-gray-300"
               >
                 <option value="Armário">Armário</option>
                 <option value="Frigorífico">Frigorífico</option>
@@ -312,45 +305,43 @@ export default function Home() {
           </div>
 
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Loja / Supermercado</label>
+            <label className="block text-xs text-gray-400 mb-1">Loja / Supermercado</label>
             <input 
               type="text" 
               value={loja} 
               onChange={e => setLoja(e.target.value)} 
               placeholder="Ex: Tenda" 
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
+              className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
             />
           </div>
 
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Forma de Pagamento</label>
+            <label className="block text-xs text-gray-400 mb-1">Forma de Pagamento</label>
             <input 
               type="text" 
               value={pagamento} 
               onChange={e => setPagamento(e.target.value)} 
               placeholder="Ex: Cartão Tenda" 
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
+              className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
             />
           </div>
 
-          <div className="md:col-span-2 mt-2">
-            <button 
-              type="submit" 
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 rounded-lg text-sm transition shadow-lg"
-            >
-              Guardar no Stock
-            </button>
-          </div>
+          <button 
+            type="submit" 
+            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 rounded-lg text-sm transition shadow-lg mt-2"
+          >
+            Guardar no Stock
+          </button>
         </form>
       </section>
 
-      {/* INVENTÁRIO DA DESPENSA */}
-      <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6 shadow-lg">
+      {/* Inventário Atual com o layout original */}
+      <section className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6 mb-6 shadow-xl">
         <h2 className="text-lg font-semibold text-emerald-400 mb-4">Inventário Atual</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 text-xs">
+              <tr className="border-b border-gray-800 text-gray-400 text-xs">
                 <th className="pb-3">Item</th>
                 <th className="pb-3 text-center">Qtd</th>
                 <th className="pb-3">Validade</th>
@@ -358,17 +349,17 @@ export default function Home() {
                 <th className="pb-3 text-right">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/50">
+            <tbody className="divide-y divide-gray-800/50">
               {inventario.map(prod => (
-                <tr key={prod.id} className="hover:bg-slate-800/30">
+                <tr key={prod.id} className="hover:bg-gray-800/30">
                   <td className="py-3 font-medium">
                     {prod.item}
                     {prod.quantidade === 0 && <span className="ml-2 text-xs bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Acabou</span>}
                     {prod.quantidade === 1 && <span className="ml-2 text-xs bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Acabando</span>}
                   </td>
                   <td className="py-3 text-center font-bold">{prod.quantidade}</td>
-                  <td className="py-3 text-xs text-slate-400">{prod.validade || 'Sem data'}</td>
-                  <td className="py-3 text-slate-300">R$ {Number(prod.preco_unitario || 0).toFixed(2)}</td>
+                  <td className="py-3 text-xs text-gray-400">{prod.validade || 'Sem data'}</td>
+                  <td className="py-3 text-gray-300">R$ {Number(prod.preco_unitario || 0).toFixed(2)}</td>
                   <td className="py-3 text-right">
                     <button 
                       onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
@@ -381,7 +372,7 @@ export default function Home() {
               ))}
               {inventario.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-slate-500 text-sm">Nenhum item registado na despensa.</td>
+                  <td colSpan={5} className="py-6 text-center text-gray-500 text-sm">Nenhum item registado.</td>
                 </tr>
               )}
             </tbody>
@@ -389,21 +380,21 @@ export default function Home() {
         </div>
       </section>
 
-      {/* LISTA DE COMPRAS */}
-      <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+      {/* Lista de Compras */}
+      <section className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl">
         <h2 className="text-lg font-semibold text-amber-400 mb-4">🛒 Lista de Compras (Itens Esgotados)</h2>
         <ul className="space-y-2">
           {listaCompras.map(c => (
-            <li key={c.id} className="bg-slate-950 border border-slate-800 p-3 rounded-lg flex justify-between items-center text-sm">
-              <span className="font-medium text-slate-200">❌ {c.item}</span>
+            <li key={c.id} className="bg-gray-950 border border-gray-800 p-3 rounded-lg flex justify-between items-center text-sm">
+              <span className="font-medium text-gray-200">❌ {c.item}</span>
               <span className="text-xs text-amber-500 bg-amber-950/40 border border-amber-900 px-2.5 py-1 rounded">Pendente</span>
             </li>
           ))}
           {listaCompras.length === 0 && (
-            <p className="text-slate-500 text-sm text-center py-4">Tudo em ordem! Nenhum item em falta na despensa.</p>
+            <p className="text-gray-500 text-sm text-center py-4">Tudo em ordem! Nenhum item em falta.</p>
           )}
         </ul>
       </section>
-    </main>
+    </div>
   );
 }
