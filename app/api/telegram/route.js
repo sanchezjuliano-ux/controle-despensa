@@ -12,12 +12,9 @@ const bot = new Telegraf(token);
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-// CÉREBRO PRINCIPAL: Modelo ativo na conta
-const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-live-preview" });
+// CÉREBRO PRINCIPAL: Gemini 2.5 Flash oficial e estável detetado na API
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-// ==========================================
-// MOTOR TÁTICO CENTRAL (Processa Texto, Áudio e Imagem)
-// ==========================================
 async function processarOrdem(ctx, texto) {
   const responsavel = ctx.from.first_name || 'Família';
 
@@ -47,33 +44,27 @@ async function processarOrdem(ctx, texto) {
 
     const intencao = intentResult.response.text().trim().toUpperCase();
 
-    // 1. LÓGICA: CONSULTAR INVENTÁRIO
     if (intencao.includes('CONSULTAR')) {
       const { data, error } = await supabase.from('despensa').select('*').order('item', { ascending: true });
       if (error || !data || data.length === 0) {
         return ctx.reply('📦 A despensa está vazia ou não consegui aceder aos dados.');
       }
       let msgResposta = "📦 *Inventário Atual da Despensa:*\n";
-      
       data.forEach(item => {
         const precoUn = item.preco_unitario ? Number(item.preco_unitario).toFixed(2) : '0.00';
         let alerta = "";
         if (item.quantidade === 0) alerta = " 🚨 *[ACABOU]*";
         else if (item.quantidade === 1) alerta = " ⚠️ *[ACABANDO]*";
-
         msgResposta += `- *${item.item}* (x${item.quantidade})${alerta} | R$ ${precoUn}\n`;
       });
       return ctx.replyWithMarkdown(msgResposta);
     }
 
-    // 2. LÓGICA: RELATÓRIOS E ALERTAS
     if (intencao.includes('COMPARAR')) {
       const { data, error } = await supabase.from('despensa').select('*');
       if (error) return ctx.reply('📊 Erro ao puxar dados para análise.');
-      
       const criticos = data.filter(i => i.quantidade <= 1);
       let alertaMsg = "🚨 *Relatório de Stock Crítico:*\n\n";
-      
       if (criticos.length > 0) {
         criticos.forEach(c => {
           if (c.quantidade === 0) alertaMsg += `❌ *${c.item}* ACABOU! (Na lista de compras)\n`;
@@ -85,10 +76,8 @@ async function processarOrdem(ctx, texto) {
       return ctx.replyWithMarkdown(alertaMsg);
     }
 
-    // 3. LÓGICA: CONSUMIR (DAR BAIXA)
     if (intencao.includes('CONSUMIR')) {
       const promptConsumo = `Analisa este texto de consumo de despensa e devolve APENAS um array JSON: [{"item": "Nome", "quantidade": 1}]. Se a quantidade não for explicitada, assume 1. Texto: "${texto}"`;
-      
       let result;
       try {
         result = await model.generateContent(promptConsumo);
@@ -103,7 +92,7 @@ async function processarOrdem(ctx, texto) {
       let jsonString = result.response.text().trim();
       if (jsonString.startsWith('```json')) jsonString = jsonString.slice(7, -3);
       if (jsonString.startsWith('```')) jsonString = jsonString.slice(3, -3);
-      
+
       const itensConsumidos = JSON.parse(jsonString);
       let msgResposta = "📉 *Baixa de Itens Registada:*\n";
 
@@ -148,10 +137,8 @@ async function processarOrdem(ctx, texto) {
       return ctx.replyWithMarkdown(msgResposta);
     }
 
-    // 4. LÓGICA: REGISTAR (ENTRADA)
     if (intencao.includes('REGISTAR')) {
       const promptRegisto = `Analisa este texto de registo de compras e devolve APENAS um array JSON: [{"item": "Nome", "quantidade": 1, "categoria": "Mercearia", "preco": 10.50, "loja": "Nome do Mercado", "pagamento": "Forma de Pagamento"}]. Se o utilizador não mencionar a loja ou o pagamento, preenche com "Não informado". Texto: "${texto}"`;
-      
       let result;
       try {
         result = await model.generateContent(promptRegisto);
@@ -166,7 +153,7 @@ async function processarOrdem(ctx, texto) {
       let jsonString = result.response.text().trim();
       if (jsonString.startsWith('```json')) jsonString = jsonString.slice(7, -3);
       if (jsonString.startsWith('```')) jsonString = jsonString.slice(3, -3);
-      
+
       const itens = JSON.parse(jsonString);
       let msgResposta = "✅ *Compras Registadas (Voltou ao Inventário):*\n";
 
@@ -206,7 +193,6 @@ async function processarOrdem(ctx, texto) {
         if (insertHistoricoError) console.error("ERRO NO SUPABASE:", insertHistoricoError);
         
         await supabase.from('lista_compras').delete().ilike('item', `%${item}%`);
-
         msgResposta += `- ${item} (x${qtdEntrada}) | Loja: ${loja || '?'} | R$ ${precoFinal.toFixed(2)}\n`;
       }
       return ctx.replyWithMarkdown(msgResposta);
@@ -220,22 +206,15 @@ async function processarOrdem(ctx, texto) {
   }
 }
 
-// ==========================================
-// GATILHO 1: MENSAGENS DE TEXTO
-// ==========================================
 bot.on('text', async (ctx) => {
   const texto = ctx.message.text;
   if (texto.startsWith('/')) return;
   await processarOrdem(ctx, texto);
 });
 
-// ==========================================
-// GATILHO 2: MENSAGENS DE ÁUDIO
-// ==========================================
 bot.on('voice', async (ctx) => {
   try {
     await ctx.reply("🎙️ Áudio recebido. A transcrever a ordem...");
-
     const fileLink = await ctx.telegram.getFileLink(ctx.message.voice.file_id);
     const response = await fetch(fileLink.href);
     const buffer = await response.arrayBuffer();
@@ -249,7 +228,6 @@ bot.on('voice', async (ctx) => {
     };
 
     const promptTranscricao = "Transcreve exatamente o que foi dito neste áudio. Devolve APENAS o texto puro, sem aspas, sem asteriscos e sem explicações.";
-    
     let transcricaoResult;
     try {
       transcricaoResult = await model.generateContent([promptTranscricao, audioPart]);
@@ -264,21 +242,15 @@ bot.on('voice', async (ctx) => {
     const textoTranscrito = transcricaoResult.response.text().trim();
     await ctx.reply(`✅ Transcrição: "${textoTranscrito}"\n⚙️ A executar...`);
     await processarOrdem(ctx, textoTranscrito);
-
   } catch (error) {
     console.error("Erro no processamento de áudio - TAREFA CANCELADA:", error);
     ctx.reply("❌ Tarefa cancelada devido a um erro crítico no áudio.");
   }
 });
 
-// ==========================================
-// GATILHO 3: MENSAGENS DE FOTO (NOVO PARA O MERCADO!)
-// ==========================================
 bot.on('photo', async (ctx) => {
   try {
     await ctx.reply("📸 Foto recebida. A analisar etiqueta/produto...");
-
-    // Pega na foto de maior resolução enviada
     const fotos = ctx.message.photo;
     const maiorFoto = fotos[fotos.length - 1];
     
@@ -295,7 +267,6 @@ bot.on('photo', async (ctx) => {
     };
 
     const promptFoto = "Analisa esta imagem de uma etiqueta de preço, talão ou produto de supermercado. Extrai o nome do produto, o preço, a quantidade (se visível) e a categoria. Devolve num formato de texto claro que sirva para registar a compra.";
-
     let fotoResult;
     try {
       fotoResult = await model.generateContent([promptFoto, imagePart]);
@@ -309,10 +280,7 @@ bot.on('photo', async (ctx) => {
 
     const textoExtraido = fotoResult.response.text().trim();
     await ctx.reply(`✅ Produto Detetado:\n${textoExtraido}\n⚙️ A registar na despensa...`);
-
-    // Passa o texto extraído da foto diretamente para o motor de registo de compras
     await processarOrdem(ctx, `Comprei: ${textoExtraido}`);
-
   } catch (error) {
     console.error("Erro no processamento de foto - TAREFA CANCELADA:", error);
     ctx.reply("❌ Tarefa cancelada devido a um erro ao processar a fotografia.");
