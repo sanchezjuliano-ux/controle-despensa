@@ -12,6 +12,7 @@ const bot = new Telegraf(token);
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 
+// CÉREBRO PRINCIPAL: Gemini 3.8 Flash
 const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
 
 async function processarOrdem(ctx, texto) {
@@ -249,9 +250,12 @@ bot.on('voice', async (ctx) => {
 
 bot.on('photo', async (ctx) => {
   try {
-    await ctx.reply("📸 Foto recebida. A analisar etiqueta/produto...");
+    await ctx.reply("📸 Foto recebida. A analisar etiqueta e quantidade...");
     const fotos = ctx.message.photo;
     const maiorFoto = fotos[fotos.length - 1];
+    
+    // Captura a quantidade informada na legenda (ex: "3"), se houver
+    const legenda = ctx.message.caption || "1";
     
     const fileLink = await ctx.telegram.getFileLink(maiorFoto.file_id);
     const response = await fetch(fileLink.href);
@@ -265,8 +269,7 @@ bot.on('photo', async (ctx) => {
       },
     };
 
-    // PROMPT CORRIGIDO: Força a IA a devolver diretamente o texto de compra estruturado, sem explicações
-    const promptFoto = "Analisa esta imagem de uma etiqueta de preço ou produto. Extrai estritamente no formato: Comprei [quantidade] unidade(s) de [nome do produto] por [preço] reais na loja [nome do mercado se visível, senão 'Supermercado']. Exemplo: Comprei 1 unidade de Fósforo Pinheiro por 5.89 reais na loja Tenda.";
+    const promptFoto = `Analisa esta imagem de uma etiqueta de preço ou produto. O utilizador especificou a quantidade de unidades compradas como: "${legenda}". Extrai o nome do produto, o preço unitário e utiliza obrigatoriamente essa quantidade informada. Devolve estritamente no formato: Comprei ${legenda} unidade(s) de [nome do produto] por [preço] reais na loja [nome do mercado se visível, senão 'Supermercado'].`;
     
     let fotoResult;
     try {
