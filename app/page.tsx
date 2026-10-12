@@ -60,7 +60,6 @@ export default function Home() {
     if (historicoData) setHistorico(historicoData);
   }
 
-  // --- ANÁLISES PREDITIVAS E ESTATÍSTICAS ---
   function analisarItem(nomeItem: string, qtdAtual: number) {
     const movimentacoes = historico
       .filter(h => h.item && h.item.toLowerCase().includes(nomeItem.toLowerCase()))
@@ -93,7 +92,6 @@ export default function Home() {
 
     const mediaDiasConsumo = ciclos > 0 ? Math.round(totalDias / ciclos) : 0;
     
-    // Data estimada de término
     let dataTerminoFmt = 'Indefinido';
     if (mediaDiasConsumo > 0 && qtdAtual > 0) {
       const diasRestantes = mediaDiasConsumo * qtdAtual;
@@ -115,11 +113,9 @@ export default function Home() {
     };
   }
 
-  // Sugestão automática de compra com base no consumo mensal (30 dias)
   function calcularSugestaoCompra(nomeItem: string) {
     const { mediaDiasConsumo } = analisarItem(nomeItem, 1);
     if (mediaDiasConsumo <= 0) return 1;
-    // Quantidade consumida num ciclo de 30 dias
     const sugestao = Math.ceil(30 / mediaDiasConsumo);
     return sugestao < 1 ? 1 : sugestao;
   }
@@ -698,7 +694,6 @@ export default function Home() {
                   const isEsgotado = prod.quantidade === 0;
                   const stats = analisarItem(prod.item, prod.quantidade);
 
-                  // Alerta de validade crítica (vence em menos de 7 dias)
                   let alertaValidade = false;
                   if (prod.validade) {
                     const diffDiasValidade = Math.ceil((new Date(prod.validade).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
@@ -852,7 +847,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* GUIA 2: LISTA DE COMPRAS COM VALORES INTEIROS SEM 'R$' E SUGESTÃO INTELIGENTE */}
+        {/* GUIA 2: LISTA DE COMPRAS */}
         {activeTab === 'compras' && (
           <div className="space-y-6">
             <input 
@@ -901,7 +896,8 @@ export default function Home() {
               
               <div className="space-y-3">
                 {listaComprasFiltrada.map(c => {
-                  const { menor, media } = analisarItem(c.item, 0);
+                  // CORREÇÃO: Utilizando corretamente 'mediaPreco' (e não 'media')
+                  const { menor, mediaPreco } = analisarItem(c.item, 0);
                   const precoAtualVal = precosAtuais[c.id] || '';
                   const qtdComprarVal = quantidadesCompra[c.id] !== undefined ? quantidadesCompra[c.id] : calcularSugestaoCompra(c.item);
 
@@ -913,7 +909,6 @@ export default function Home() {
                         <span className="text-[10px] text-amber-500 bg-amber-950/40 border border-amber-900 px-2.5 py-0.5 rounded-full font-medium shrink-0">Pendente</span>
                       </div>
 
-                      {/* Grelha limpa: Valores inteiros sem 'R$' e layout perfeitamente ajustado */}
                       <div className="grid grid-cols-[1fr_1fr_80px_55px_42px] gap-1.5 items-center">
                         
                         <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center min-w-0">
@@ -926,7 +921,7 @@ export default function Home() {
                         <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center min-w-0">
                           <span className="block text-[9px] text-slate-400 uppercase tracking-wider">Médio</span>
                           <span className="font-bold text-blue-400 text-xs truncate block">
-                            {media > 0 ? media.toFixed(2) : '0.00'}
+                            {mediaPreco > 0 ? mediaPreco.toFixed(2) : '0.00'}
                           </span>
                         </div>
 
@@ -952,7 +947,7 @@ export default function Home() {
                             onChange={(e) => setQuantidadesCompra({ ...quantidadesCompra, [c.id]: intToNumber(e.target.value) })}
                             placeholder="Qtd" 
                             className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-amber-300 text-center font-bold"
-                            title="Quantidade Sugerida / a Comprar"
+                            title="Quantidade a Comprar"
                           />
                         </div>
 
