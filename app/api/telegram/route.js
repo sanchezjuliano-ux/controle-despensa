@@ -12,8 +12,8 @@ const bot = new Telegraf(token);
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-// CÉREBRO PRINCIPAL: Gemini 3.8 Flash
-const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
+// CÉREBRO PRINCIPAL: Atualizado para o modelo ativo na sua conta
+const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-live-preview" });
 
 // ==========================================
 // MOTOR TÁTICO CENTRAL (Processa Texto e Áudio)
@@ -33,7 +33,18 @@ async function processarOrdem(ctx, texto) {
       Devolve APENAS a palavra da categoria ("REGISTAR", "CONSUMIR", "CONSULTAR" ou "COMPARAR_SUGERIR") e mais nada.
       Mensagem: "${texto}"
     `;
-    const intentResult = await model.generateContent(intentPrompt);
+
+    let intentResult;
+    try {
+      intentResult = await model.generateContent(intentPrompt);
+      if (!intentResult || !intentResult.response || !intentResult.response.text()) {
+        throw new Error("Resposta vazia ao detetar intenção.");
+      }
+    } catch (aiError) {
+      console.error("ERRO IA (Intenção) - TAREFA CANCELADA:", aiError.message);
+      return ctx.reply('❌ Tarefa cancelada devido a uma falha temporária no motor de IA. Tenta novamente.');
+    }
+
     const intencao = intentResult.response.text().trim().toUpperCase();
 
     // 1. LÓGICA: CONSULTAR INVENTÁRIO
@@ -77,7 +88,18 @@ async function processarOrdem(ctx, texto) {
     // 3. LÓGICA: CONSUMIR (DAR BAIXA)
     if (intencao.includes('CONSUMIR')) {
       const promptConsumo = `Analisa este texto de consumo de despensa e devolve APENAS um array JSON: [{"item": "Nome", "quantidade": 1}]. Se a quantidade não for explicitada, assume 1. Texto: "${texto}"`;
-      const result = await model.generateContent(promptConsumo);
+      
+      let result;
+      try {
+        result = await model.generateContent(promptConsumo);
+        if (!result || !result.response || !result.response.text()) {
+          throw new Error("Resposta vazia ao processar consumo.");
+        }
+      } catch (aiError) {
+        console.error("ERRO IA (Consumo) - TAREFA CANCELADA:", aiError.message);
+        return ctx.reply('❌ Tarefa cancelada devido a uma falha no processamento do consumo. Tenta novamente.');
+      }
+
       let jsonString = result.response.text().trim();
       if (jsonString.startsWith('```json')) jsonString = jsonString.slice(7, -3);
       if (jsonString.startsWith('```')) jsonString = jsonString.slice(3, -3);
@@ -104,8 +126,9 @@ async function processarOrdem(ctx, texto) {
         let novaQuantidade = dbItem.quantidade - qtdBaixa;
         if (novaQuantidade < 0) novaQuantidade = 0; 
 
-        // Atualiza a despensa
-        await supabase.from('despensa').update({ quantidade: novaQuantidade }).eq('id', dbItem.id);
+        // Atualiza a despensa (limpa validade se zerar)
+        const updatePayload = novaQuantidade === 0 ? { quantidade: 0, validade: null } : { quantidade: novaQuantidade };
+        await supabase.from('despensa').update(updatePayload).eq('id', dbItem.id);
 
         // Histórico de saída
         await supabase.from('historico_movimentacoes').insert([{ 
@@ -131,7 +154,17 @@ async function processarOrdem(ctx, texto) {
     if (intencao.includes('REGISTAR')) {
       const promptRegisto = `Analisa este texto de registo de compras e devolve APENAS um array JSON: [{"item": "Nome", "quantidade": 1, "categoria": "Mercearia", "preco": 10.50, "loja": "Nome do Mercado", "pagamento": "Forma de Pagamento"}]. Se o utilizador não mencionar a loja ou o pagamento, preenche com "Não informado". Texto: "${texto}"`;
       
-      const result = await model.generateContent(promptRegisto);
+      let result;
+      try {
+        result = await model.generateContent(promptRegisto);
+        if (!result || !result.response || !result.response.text()) {
+          throw new Error("Resposta vazia ao processar registo.");
+        }
+      } catch (aiError) {
+        console.error("ERRO IA (Registo) - TAREFA CANCELADA:", aiError.message);
+        return ctx.reply('❌ Tarefa cancelada devido a uma falha no processamento do registo. Tenta novamente.');
+      }
+
       let jsonString = result.response.text().trim();
       if (jsonString.startsWith('```json')) jsonString = jsonString.slice(7, -3);
       if (jsonString.startsWith('```')) jsonString = jsonString.slice(3, -3);
@@ -185,8 +218,8 @@ async function processarOrdem(ctx, texto) {
     return ctx.reply("❌ Ordem ambígua. Especifica se queres Registar (compras), Consumir (dar baixa) ou Consultar o inventário.");
 
   } catch (error) {
-    console.error("ERRO COMPLETO:", error);
-    ctx.reply('❌ Erro tático ao processar a ordem na base de dados ou falha na IA.');
+    console.error("ERRO COMPLETO - TAREFA CANCELADA:", error);
+    ctx.reply('❌ Tarefa cancelada devido a um erro inesperado no processamento.');
   }
 }
 
@@ -200,19 +233,17 @@ bot.on('text', async (ctx) => {
 });
 
 // ==========================================
-// GATILHO 2: MENSAGENS DE ÁUDIO (NOVO!)
+// GATILHO 2: MENSAGENS DE ÁUDIO
 // ==========================================
 bot.on('voice', async (ctx) => {
   try {
     await ctx.reply("🎙️ Áudio recebido. A transcrever a ordem...");
 
-    // 1. Extrair o ficheiro de áudio do servidor do Telegram
     const fileLink = await ctx.telegram.getFileLink(ctx.message.voice.file_id);
     const response = await fetch(fileLink.href);
     const buffer = await response.arrayBuffer();
     const base64Audio = Buffer.from(buffer).toString("base64");
 
-    // 2. Preparar os dados Multimodais para o Gemini
     const audioPart = {
       inlineData: {
         data: base64Audio,
@@ -220,19 +251,28 @@ bot.on('voice', async (ctx) => {
       },
     };
 
-    // 3. IA Transcreve o Áudio
     const promptTranscricao = "Transcreve exatamente o que foi dito neste áudio. Devolve APENAS o texto puro, sem aspas, sem asteriscos e sem explicações.";
-    const transcricaoResult = await model.generateContent([promptTranscricao, audioPart]);
+    
+    let transcricaoResult;
+    try {
+      transcricaoResult = await model.generateContent([promptTranscricao, audioPart]);
+      if (!transcricaoResult || !transcricaoResult.response || !transcricaoResult.response.text()) {
+        throw new Error("Transcrição vazia.");
+      }
+    } catch (aiError) {
+      console.error("ERRO IA (Áudio) - TAREFA CANCELADA:", aiError.message);
+      return ctx.reply("❌ Tarefa cancelada: falha ao transcrever o áudio. Tenta gravar de novo.");
+    }
+
     const textoTranscrito = transcricaoResult.response.text().trim();
 
     await ctx.reply(`✅ Transcrição: "${textoTranscrito}"\n⚙️ A executar...`);
 
-    // 4. Atirar a transcrição para o motor central como se fosse texto
     await processarOrdem(ctx, textoTranscrito);
 
   } catch (error) {
-    console.error("Erro no processamento de áudio:", error);
-    ctx.reply("❌ Falha ao processar o áudio. Tenta escrever ou grava de novo.");
+    console.error("Erro no processamento de áudio - TAREFA CANCELADA:", error);
+    ctx.reply("❌ Tarefa cancelada devido a um erro crítico no áudio.");
   }
 });
 
