@@ -353,7 +353,6 @@ export default function GestaoDespensa() {
                       <tr className="border-b border-gray-800 text-[10px] md:text-xs text-gray-400 bg-gray-900/50">
                         <th className="p-4 uppercase">Item</th>
                         <th className="p-4 uppercase w-16 md:w-auto">Qtd</th>
-                        {/* Ocultação Tática: Esconde Local e Preço em telas pequenas para evitar scroll horizontal */}
                         <th className="hidden md:table-cell p-4 uppercase">Local</th>
                         <th className="hidden sm:table-cell p-4 uppercase">Preço</th>
                         <th className="p-4 uppercase text-right">Ações</th>
@@ -418,14 +417,14 @@ export default function GestaoDespensa() {
               <div className="overflow-x-auto w-full">
                 <table className="w-full text-left border-collapse min-w-full">
                   <thead>
-                    <tr className="border-b border-gray-800 text-[10px] md:text-xs text-gray-400 bg-gray-900/50">
-                      <th className="p-3 md:p-4 uppercase">Item</th>
-                      {/* Ocultação Tática: Histórico de preços some no mobile para focar no Preço Atual */}
-                      <th className="hidden md:table-cell p-4 uppercase text-center border-l border-gray-800/30">Último</th>
-                      <th className="hidden lg:table-cell p-4 uppercase text-center border-r border-gray-800/30">Média</th>
-                      <th className="p-3 md:p-4 uppercase text-blue-400 text-center w-16 md:w-24">Qtd</th>
-                      <th className="p-3 md:p-4 uppercase text-blue-400 text-center w-28 md:w-40">Preço (R$)</th>
-                      <th className="p-3 md:p-4 text-right"></th>
+                    <tr className="border-b border-gray-800 text-[9px] md:text-xs text-gray-400 bg-gray-900/50">
+                      <th className="p-2 md:p-4 uppercase">Item</th>
+                      {/* Removida a ocultação tática - Visão Absoluta no Mobile */}
+                      <th className="p-2 md:p-4 uppercase text-center border-l border-gray-800/30">Últ.</th>
+                      <th className="p-2 md:p-4 uppercase text-center border-r border-gray-800/30">Méd.</th>
+                      <th className="p-2 md:p-4 uppercase text-blue-400 text-center w-12 md:w-24">Qtd</th>
+                      <th className="p-2 md:p-4 uppercase text-blue-400 text-center w-24 md:w-40">Preço</th>
+                      <th className="p-2 md:p-4 text-right"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -434,23 +433,23 @@ export default function GestaoDespensa() {
                     ) : (
                       compras.map((compra) => (
                         <tr key={compra.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
-                          <td className="p-3 md:p-4">
-                            <span className="font-bold text-orange-100 block text-sm md:text-lg">{compra.item}</span>
-                            <span className="text-gray-500 text-[10px] md:text-xs uppercase tracking-wider">{compra.categoria}</span>
+                          <td className="p-2 md:p-4">
+                            <span className="font-bold text-orange-100 block text-xs md:text-lg truncate max-w-[80px] md:max-w-none">{compra.item}</span>
+                            <span className="text-gray-500 text-[9px] md:text-xs uppercase tracking-wider hidden sm:block">{compra.categoria}</span>
                           </td>
-                          <td className="hidden md:table-cell p-4 text-center bg-gray-800/10 text-gray-400 text-sm font-medium border-l border-gray-800/30">R$ {compra.ultimo_preco.toFixed(2)}</td>
-                          <td className="hidden lg:table-cell p-4 text-center bg-gray-800/10 text-gray-400 text-sm font-medium border-r border-gray-800/30">R$ {compra.preco_medio.toFixed(2)}</td>
-                          <td className="p-3 md:p-4 text-center">
-                            <input type="number" inputMode="numeric" pattern="[0-9]*" min="1" value={compra.qtd_compra} onChange={(e) => atualizarCarrinho(compra.id, 'qtd_compra', e.target.value)} className="w-12 md:w-16 bg-[#0B0F19] border border-blue-900/50 text-white font-bold px-1 py-3 md:py-2 rounded-lg text-center outline-none focus:border-blue-500 transition-colors" />
+                          <td className="p-2 md:p-4 text-center bg-gray-800/10 text-gray-400 text-[10px] md:text-sm font-medium border-l border-gray-800/30">R$ {compra.ultimo_preco.toFixed(2)}</td>
+                          <td className="p-2 md:p-4 text-center bg-gray-800/10 text-gray-400 text-[10px] md:text-sm font-medium border-r border-gray-800/30">R$ {compra.preco_medio.toFixed(2)}</td>
+                          <td className="p-2 md:p-4 text-center">
+                            <input type="number" inputMode="numeric" pattern="[0-9]*" min="1" value={compra.qtd_compra} onChange={(e) => atualizarCarrinho(compra.id, 'qtd_compra', e.target.value)} className="w-10 md:w-16 bg-[#0B0F19] border border-blue-900/50 text-white font-bold px-1 py-2 md:py-2 rounded md:rounded-lg text-center text-xs md:text-base outline-none focus:border-blue-500 transition-colors" />
                           </td>
-                          <td className="p-3 md:p-4">
+                          <td className="p-2 md:p-4">
                             <div className="relative flex items-center">
-                              <span className="absolute left-2 md:left-3 text-gray-500 text-xs md:text-sm font-bold">R$</span>
-                              <input type="text" inputMode="decimal" placeholder="0.00" value={compra.preco_compra} onChange={(e) => atualizarCarrinho(compra.id, 'preco_compra', e.target.value)} className={`w-full bg-[#0B0F19] border text-white font-bold pl-7 md:pl-8 pr-2 py-3 md:py-2 rounded-lg text-center focus:outline-none transition-colors ${parseFloat(String(compra.preco_compra).replace(',', '.')) > 0 ? 'border-green-500 bg-green-900/10' : 'border-blue-900/50 focus:border-blue-500'}`} />
+                              <span className="absolute left-1 md:left-3 text-gray-500 text-[10px] md:text-sm font-bold">R$</span>
+                              <input type="text" inputMode="decimal" placeholder="0.00" value={compra.preco_compra} onChange={(e) => atualizarCarrinho(compra.id, 'preco_compra', e.target.value)} className={`w-full bg-[#0B0F19] border text-white font-bold pl-5 md:pl-8 pr-1 py-2 md:py-2 rounded md:rounded-lg text-center text-xs md:text-base focus:outline-none transition-colors ${parseFloat(String(compra.preco_compra).replace(',', '.')) > 0 ? 'border-green-500 bg-green-900/10' : 'border-blue-900/50 focus:border-blue-500'}`} />
                             </div>
                           </td>
-                          <td className="p-3 md:p-4 text-right">
-                            <button onClick={() => apagarDaLista(compra.id)} className="text-red-500/70 hover:text-red-400 p-2 text-xl font-bold">×</button>
+                          <td className="p-1 md:p-4 text-right">
+                            <button onClick={() => apagarDaLista(compra.id)} className="text-red-500/70 hover:text-red-400 p-1 md:p-2 text-lg md:text-xl font-bold">×</button>
                           </td>
                         </tr>
                       ))
@@ -460,7 +459,6 @@ export default function GestaoDespensa() {
               </div>
             </div>
 
-            {/* Zona do Polegar: Barra Fixa Inferior no Mobile para o Checkout */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#0B0F19]/95 backdrop-blur-md border-t border-gray-800 p-4 z-40 flex justify-between items-center shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
                <div>
                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Total Carrinho</span>
