@@ -23,6 +23,16 @@ export default function GestaoDespensa() {
   const [local, setLocal] = useState('Armário');
   const [preco, setPreco] = useState('');
 
+  // Arrays dinâmicos para Categorias e Locais
+  const categoriasPadrao = ['Mercearia', 'Bebidas', 'Limpeza', 'Talho', 'Outros'];
+  const locaisPadrao = ['Armário', 'Frigorífico', 'Arca'];
+  const [listaCategorias, setListaCategorias] = useState<string[]>(categoriasPadrao);
+  const [listaLocais, setListaLocais] = useState<string[]>(locaisPadrao);
+  
+  // Estados para alternar entre "Select" e "Input"
+  const [isNovaCategoria, setIsNovaCategoria] = useState(false);
+  const [isNovoLocal, setIsNovoLocal] = useState(false);
+
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   
@@ -44,7 +54,16 @@ export default function GestaoDespensa() {
 
   const buscarItens = async () => {
     const { data } = await supabase.from('despensa').select('*').order('id', { ascending: false });
-    setItens(data || []);
+    if (data) {
+      setItens(data);
+      
+      // Inteligência de extração: varre a base de dados para aprender categorias e locais novos
+      const catUnicas = Array.from(new Set([...categoriasPadrao, ...data.map((i: any) => i.categoria).filter(Boolean)]));
+      const locUnicas = Array.from(new Set([...locaisPadrao, ...data.map((i: any) => i.local).filter(Boolean)]));
+      
+      setListaCategorias(catUnicas as string[]);
+      setListaLocais(locUnicas as string[]);
+    }
     setLoading(false);
   };
 
@@ -109,9 +128,15 @@ export default function GestaoDespensa() {
       }]);
     }
 
+    // Reset aos campos base
     setNome(''); 
     setQuantidade('1'); 
     setPreco(''); 
+    
+    // Devolve as caixas ao estado de seleção (fechando o input de texto, se estava aberto)
+    setIsNovaCategoria(false);
+    setIsNovoLocal(false);
+    
     buscarItens();
     setShowFormMobile(false); 
   };
@@ -339,6 +364,7 @@ export default function GestaoDespensa() {
                       <label className="block text-xs font-medium text-gray-400 mb-1">PRODUTO</label>
                       <input type="text" required value={nome} onChange={(e) => setNome(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500" />
                     </div>
+                    
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-medium text-gray-400 mb-1">QTD</label>
@@ -349,10 +375,39 @@ export default function GestaoDespensa() {
                         <input type="text" inputMode="decimal" placeholder="0,00" value={preco} onChange={(e) => setPreco(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500" />
                       </div>
                     </div>
+
                     <div className="grid grid-cols-2 gap-4">
-                      <div><label className="block text-xs font-medium text-gray-400 mb-1">CATEGORIA</label><select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500"><option>Mercearia</option><option>Bebidas</option><option>Limpeza</option><option>Talho</option><option>Outros</option></select></div>
-                      <div><label className="block text-xs font-medium text-gray-400 mb-1">LOCAL</label><select value={local} onChange={(e) => setLocal(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500"><option>Armário</option><option>Frigorífico</option><option>Arca</option></select></div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">CATEGORIA</label>
+                        {isNovaCategoria ? (
+                          <div className="relative">
+                            <input type="text" autoFocus required value={categoria} onChange={(e) => setCategoria(e.target.value)} placeholder="Nova categoria..." className="w-full bg-[#0B0F19] border border-green-500 rounded-lg pl-3 pr-8 py-3 lg:py-2 text-white focus:outline-none" />
+                            <button type="button" onClick={() => { setIsNovaCategoria(false); setCategoria(listaCategorias[0]); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-400 font-bold p-1">✕</button>
+                          </div>
+                        ) : (
+                          <select value={categoria} onChange={(e) => { if(e.target.value === 'NOVA') { setIsNovaCategoria(true); setCategoria(''); } else { setCategoria(e.target.value); } }} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500">
+                            {listaCategorias.map(c => <option key={c} value={c}>{c}</option>)}
+                            <option value="NOVA" className="text-green-400 font-bold bg-green-900/20">➕ Adicionar Nova...</option>
+                          </select>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">LOCAL</label>
+                        {isNovoLocal ? (
+                          <div className="relative">
+                            <input type="text" autoFocus required value={local} onChange={(e) => setLocal(e.target.value)} placeholder="Novo local..." className="w-full bg-[#0B0F19] border border-green-500 rounded-lg pl-3 pr-8 py-3 lg:py-2 text-white focus:outline-none" />
+                            <button type="button" onClick={() => { setIsNovoLocal(false); setLocal(listaLocais[0]); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-400 font-bold p-1">✕</button>
+                          </div>
+                        ) : (
+                          <select value={local} onChange={(e) => { if(e.target.value === 'NOVA') { setIsNovoLocal(true); setLocal(''); } else { setLocal(e.target.value); } }} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500">
+                            {listaLocais.map(l => <option key={l} value={l}>{l}</option>)}
+                            <option value="NOVA" className="text-green-400 font-bold bg-green-900/20">➕ Adicionar Novo...</option>
+                          </select>
+                        )}
+                      </div>
                     </div>
+                    
                     <button type="submit" className="w-full bg-[#059669] hover:bg-[#047857] text-white font-bold py-4 lg:py-3 rounded-lg mt-4 shadow-md transition-colors">Guardar no Stock</button>
                   </form>
                 </div>
@@ -379,7 +434,11 @@ export default function GestaoDespensa() {
                               <>
                                 <td className="p-3"><input type="text" className="bg-[#0B0F19] border border-gray-700 w-full min-w-[120px] text-sm rounded px-3 py-2" value={editForm.item} onChange={(e) => setEditForm({...editForm, item: e.target.value})} /></td>
                                 <td className="p-3"><input type="number" inputMode="numeric" pattern="[0-9]*" className="bg-[#0B0F19] border border-gray-700 w-16 text-sm rounded px-2 py-2 text-center" value={editForm.quantidade} onChange={(e) => setEditForm({...editForm, quantidade: e.target.value})} /></td>
-                                <td className="p-3"><select className="bg-[#0B0F19] border border-gray-700 w-full text-sm rounded px-2 py-2 mb-1 block" value={editForm.local} onChange={(e) => setEditForm({...editForm, local: e.target.value})}><option>Armário</option><option>Frigorífico</option><option>Arca</option></select></td>
+                                <td className="p-3">
+                                  <select className="bg-[#0B0F19] border border-gray-700 w-full text-sm rounded px-2 py-2 mb-1 block" value={editForm.local} onChange={(e) => setEditForm({...editForm, local: e.target.value})}>
+                                    {listaLocais.map(l => <option key={l} value={l}>{l}</option>)}
+                                  </select>
+                                </td>
                                 <td className="p-3"><input type="number" step="0.01" inputMode="decimal" className="bg-[#0B0F19] border border-gray-700 w-24 text-sm rounded px-2 py-2" value={editForm.preco_unitario} onChange={(e) => setEditForm({...editForm, preco_unitario: e.target.value})} /></td>
                                 <td className="p-3">
                                   <div className="flex gap-2 justify-end">
@@ -433,10 +492,14 @@ export default function GestaoDespensa() {
                           </div>
                           <div className="flex gap-3">
                             <div className="w-1/2">
-                              <select className="w-full bg-[#0B0F19] border border-gray-700 rounded-lg px-3 py-2 text-white text-sm" value={editForm.categoria} onChange={(e) => setEditForm({...editForm, categoria: e.target.value})}><option>Mercearia</option><option>Bebidas</option><option>Limpeza</option><option>Talho</option><option>Outros</option></select>
+                              <select className="w-full bg-[#0B0F19] border border-gray-700 rounded-lg px-3 py-2 text-white text-sm" value={editForm.categoria} onChange={(e) => setEditForm({...editForm, categoria: e.target.value})}>
+                                {listaCategorias.map(c => <option key={c} value={c}>{c}</option>)}
+                              </select>
                             </div>
                             <div className="w-1/2">
-                              <select className="w-full bg-[#0B0F19] border border-gray-700 rounded-lg px-3 py-2 text-white text-sm" value={editForm.local} onChange={(e) => setEditForm({...editForm, local: e.target.value})}><option>Armário</option><option>Frigorífico</option><option>Arca</option></select>
+                              <select className="w-full bg-[#0B0F19] border border-gray-700 rounded-lg px-3 py-2 text-white text-sm" value={editForm.local} onChange={(e) => setEditForm({...editForm, local: e.target.value})}>
+                                {listaLocais.map(l => <option key={l} value={l}>{l}</option>)}
+                              </select>
                             </div>
                           </div>
                           <div className="flex gap-3 pt-2">
