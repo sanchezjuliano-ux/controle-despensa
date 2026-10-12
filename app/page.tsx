@@ -125,7 +125,6 @@ export default function GestaoDespensa() {
     buscarItens(); setShowFormMobile(false); 
   };
 
-  // Ao dar baixa (zerar quantidade), limpa a validade na BD
   const darBaixaDespensa = async (item: any) => {
     await supabase.from('lista_compras').insert([{ item: item.item.trim(), quantidade: 1, categoria: item.categoria, local: item.local, preco_unitario: item.preco_unitario }]);
     await supabase.from('despensa').update({ quantidade: 0, validade: null }).eq('id', item.id);
@@ -152,7 +151,7 @@ export default function GestaoDespensa() {
   };
 
   const avaliarAlertaValidade = (dataValidade: string, quantidadeItem: number) => {
-    if (!dataValidade || quantidadeItem <= 0) return null; // Oculta se zerado ou vazio
+    if (!dataValidade || quantidadeItem <= 0) return null;
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     const vencimento = new Date(dataValidade);
@@ -221,20 +220,38 @@ export default function GestaoDespensa() {
 
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-[#0B0F19] text-gray-200 font-sans overflow-hidden">
+      
+      {/* Barra de Navegação Otimizada para Mobile e Desktop */}
       <aside className="w-full lg:w-64 bg-[#111827] border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-col shrink-0 z-20 shadow-md">
-        <div className="p-4 lg:p-6 border-b border-gray-800">
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">📦 Gestão Sanchez</h1>
+        <div className="p-3 lg:p-6 border-b border-gray-800 flex items-center justify-between lg:block">
+          <h1 className="text-lg lg:text-xl font-bold text-white flex items-center gap-2">📦 Gestão Sanchez</h1>
         </div>
-        <nav className="flex lg:flex-col overflow-x-auto p-3 lg:p-4 gap-2 lg:space-y-2 whitespace-nowrap scrollbar-hide">
-          <button onClick={() => setAbaAtiva('despensa')} className={`w-auto lg:w-full text-left px-4 py-3 lg:py-2.5 rounded-lg flex items-center gap-3 transition-colors ${abaAtiva === 'despensa' ? 'bg-blue-600/20 text-blue-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}>
-            📊 Lista da Despensa
+        <nav className="grid grid-cols-3 lg:flex lg:flex-col p-2 lg:p-4 gap-1.5 lg:space-y-2">
+          <button 
+            onClick={() => setAbaAtiva('despensa')} 
+            className={`text-center lg:text-left px-2 lg:px-4 py-2.5 lg:py-2.5 rounded-lg flex flex-col lg:flex-row items-center justify-center lg:justify-start gap-1 lg:gap-3 transition-colors text-xs lg:text-sm ${abaAtiva === 'despensa' ? 'bg-blue-600/20 text-blue-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}
+          >
+            <span>📊</span>
+            <span className="truncate">Despensa</span>
           </button>
-          <button onClick={() => setAbaAtiva('compras')} className={`w-auto lg:w-full text-left px-4 py-3 lg:py-2.5 rounded-lg flex items-center justify-between gap-3 transition-colors ${abaAtiva === 'compras' ? 'bg-orange-600/20 text-orange-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}>
-            <span className="flex items-center gap-2">🛒 <span className="hidden sm:inline">Lista de </span>Compras</span>
-            {compras.length > 0 && <span className="bg-orange-500/20 text-orange-400 text-xs py-0.5 px-2 rounded-full">{compras.length}</span>}
+
+          <button 
+            onClick={() => setAbaAtiva('compras')} 
+            className={`text-center lg:text-left px-2 lg:px-4 py-2.5 lg:py-2.5 rounded-lg flex flex-col lg:flex-row items-center justify-center lg:justify-between gap-1 lg:gap-3 transition-colors text-xs lg:text-sm ${abaAtiva === 'compras' ? 'bg-orange-600/20 text-orange-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}
+          >
+            <span className="flex items-center justify-center gap-1">
+              <span>🛒</span>
+              <span className="truncate">Compras</span>
+            </span>
+            {compras.length > 0 && <span className="bg-orange-500/20 text-orange-400 text-[10px] lg:text-xs py-0.5 px-1.5 lg:px-2 rounded-full">{compras.length}</span>}
           </button>
-          <button onClick={() => setAbaAtiva('historico')} className={`w-auto lg:w-full text-left px-4 py-3 lg:py-2.5 rounded-lg flex items-center gap-3 transition-colors ${abaAtiva === 'historico' ? 'bg-purple-600/20 text-purple-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}>
-            📜 Histórico de Compras
+
+          <button 
+            onClick={() => setAbaAtiva('historico')} 
+            className={`text-center lg:text-left px-2 lg:px-4 py-2.5 lg:py-2.5 rounded-lg flex flex-col lg:flex-row items-center justify-center lg:justify-start gap-1 lg:gap-3 transition-colors text-xs lg:text-sm ${abaAtiva === 'historico' ? 'bg-purple-600/20 text-purple-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}
+          >
+            <span>📜</span>
+            <span className="truncate">Histórico</span>
           </button>
         </nav>
       </aside>
