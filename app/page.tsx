@@ -16,6 +16,11 @@ export default function Home() {
   const [loadingIA, setLoadingIA] = useState(false);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
+  // Estados de busca por página
+  const [buscaDespensa, setBuscaDespensa] = useState('');
+  const [buscaCompras, setBuscaCompras] = useState('');
+  const [buscaHistorico, setBuscaHistorico] = useState('');
+
   const [expandedItems, setExpandedItems] = useState<{ [key: string]: boolean }>({});
   const [precosAtuais, setPrecosAtuais] = useState<{ [key: string]: string }>({});
   const [quantidadesCompra, setQuantidadesCompra] = useState<{ [key: string]: number }>({});
@@ -104,7 +109,6 @@ export default function Home() {
     }
   }
 
-  // Função para finalizar a compra dos itens que possuem preço preenchido
   async function finalizarCompra() {
     const itensParaFinalizar = listaCompras.filter(c => {
       const p = precosAtuais[c.id];
@@ -124,7 +128,6 @@ export default function Home() {
         const qtdComprar = intToNumber(quantidadesCompra[c.id]);
         const itemName = c.item;
 
-        // 1. Verificar se o item já existe na despensa para somar ou inserir
         const { data: existente } = await supabase.from('despensa').select('*').ilike('item', `%${itemName}%`);
 
         if (existente && existente.length > 0) {
@@ -143,7 +146,6 @@ export default function Home() {
           }]);
         }
 
-        // 2. Registar no histórico de movimentações (entrada)
         await supabase.from('historico_movimentacoes').insert([{
           item: itemName,
           tipo_movimento: 'entrada',
@@ -154,11 +156,9 @@ export default function Home() {
           metodo_pagamento: 'Não informado'
         }]);
 
-        // 3. Remover da lista de compras
         await supabase.from('lista_compras').delete().eq('id', c.id);
       }
 
-      // Limpar estados locais dos itens finalizados
       const novosPrecos = { ...precosAtuais };
       itensParaFinalizar.forEach(c => delete novosPrecos[c.id]);
       setPrecosAtuais(novosPrecos);
@@ -401,6 +401,23 @@ export default function Home() {
     setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // Itens filtrados pelas buscas
+  const inventarioFiltrado = inventario.filter(prod => 
+    prod.item.toLowerCase().includes(buscaDespensa.toLowerCase()) ||
+    (prod.categoria && prod.categoria.toLowerCase().includes(buscaDespensa.toLowerCase())) ||
+    (prod.local && prod.local.toLowerCase().includes(buscaDespensa.toLowerCase()))
+  );
+
+  const listaComprasFiltrada = listaCompras.filter(c => 
+    c.item.toLowerCase().includes(buscaCompras.toLowerCase())
+  );
+
+  const historicoFiltrado = historico.filter(h => 
+    h.item.toLowerCase().includes(buscaHistorico.toLowerCase()) ||
+    (h.loja && h.loja.toLowerCase().includes(buscaHistorico.toLowerCase())) ||
+    (h.responsavel && h.responsavel.toLowerCase().includes(buscaHistorico.toLowerCase()))
+  );
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row font-sans">
       <aside className="w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 p-3 md:p-5 flex flex-col md:justify-between shrink-0">
@@ -453,6 +470,7 @@ export default function Home() {
 
       <main className="flex-1 p-4 md:p-8 overflow-y-auto max-w-5xl">
         
+        {/* GUIA 1: DESPENSA */}
         {activeTab === 'despensa' && (
           <div className="space-y-6">
             
@@ -618,12 +636,24 @@ export default function Home() {
               </div>
             )}
 
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl">
-              <h2 className="text-xl font-bold text-emerald-400 mb-4">Inventário Atual</h2>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+                <h2 className="text-xl font-bold text-emerald-400">Inventário Atual</h2>
+                {/* BARRA DE PESQUISA DA DESPENSA */}
+                <div className="w-full sm:w-72">
+                  <input 
+                    type="text" 
+                    value={buscaDespensa} 
+                    onChange={e => setBuscaDespensa(e.target.value)}
+                    placeholder="🔍 Pesquisar na despensa..." 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs focus:border-emerald-500 outline-none text-slate-200"
+                  />
+                </div>
+              </div>
               
               {/* VISTA DE TELEMÓVEL (<768px) */}
               <div className="block md:hidden space-y-2.5">
-                {inventario.map(prod => {
+                {inventarioFiltrado.map(prod => {
                   const isExpanded = expandedItems[prod.id];
                   const isEsgotado = prod.quantidade === 0;
 
@@ -687,8 +717,8 @@ export default function Home() {
                     </div>
                   );
                 })}
-                {inventario.length === 0 && (
-                  <p className="py-8 text-center text-slate-500 text-sm">Nenhum item registado na despensa.</p>
+                {inventarioFiltrado.length === 0 && (
+                  <p className="py-8 text-center text-slate-500 text-sm">Nenhum item encontrado.</p>
                 )}
               </div>
 
@@ -705,7 +735,7 @@ export default function Home() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
-                    {inventario.map(prod => {
+                    {inventarioFiltrado.map(prod => {
                       const isEsgotado = prod.quantidade === 0;
                       return (
                         <tr key={prod.id} className={`hover:bg-slate-800/30 ${isEsgotado ? 'bg-red-950/20 text-red-200' : ''}`}>
@@ -743,9 +773,9 @@ export default function Home() {
                         </tr>
                       );
                     })}
-                    {inventario.length === 0 && (
+                    {inventarioFiltrado.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="py-8 text-center text-slate-500 text-sm">Nenhum item registado na despensa.</td>
+                        <td colSpan={5} className="py-8 text-center text-slate-500 text-sm">Nenhum item encontrado.</td>
                       </tr>
                     )}
                   </tbody>
@@ -756,7 +786,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* GUIA 2: LISTA DE COMPRAS COM CALCULADORA E BOTÃO DE FINALIZAR COMPRA */}
+        {/* GUIA 2: LISTA DE COMPRAS */}
         {activeTab === 'compras' && (
           <div className="space-y-6">
             <input 
@@ -768,7 +798,6 @@ export default function Home() {
               className="hidden" 
             />
 
-            {/* PAINEL CALCULADORA DO CARRINHO + BOTÃO DE FINALIZAR */}
             <div className="bg-gradient-to-r from-amber-950/80 to-slate-900 border border-amber-800/80 rounded-2xl p-4 md:p-6 shadow-xl flex flex-col sm:flex-row justify-between items-center gap-4">
               <div>
                 <p className="text-xs text-amber-400 font-semibold uppercase tracking-wider">Calculadora do Carrinho</p>
@@ -790,11 +819,23 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl">
-              <h2 className="text-xl font-bold text-amber-400 mb-4">🛒 Lista de Compras (Itens Esgotados)</h2>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+                <h2 className="text-xl font-bold text-amber-400">🛒 Lista de Compras (Itens Esgotados)</h2>
+                {/* BARRA DE PESQUISA DA LISTA DE COMPRAS */}
+                <div className="w-full sm:w-72">
+                  <input 
+                    type="text" 
+                    value={buscaCompras} 
+                    onChange={e => setBuscaCompras(e.target.value)}
+                    placeholder="🔍 Pesquisar nas compras..." 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs focus:border-amber-500 outline-none text-slate-200"
+                  />
+                </div>
+              </div>
               
               <div className="space-y-3">
-                {listaCompras.map(c => {
+                {listaComprasFiltrada.map(c => {
                   const { menor, media } = calcularEstatisticasPreco(c.item);
                   const precoAtualVal = precosAtuais[c.id] || '';
                   const qtdComprarVal = quantidadesCompra[c.id] !== undefined ? quantidadesCompra[c.id] : 1;
@@ -868,17 +909,31 @@ export default function Home() {
                   );
                 })}
 
-                {listaCompras.length === 0 && (
-                  <p className="text-slate-500 text-sm text-center py-10">Tudo em ordem! Nenhum item em falta na despensa.</p>
+                {listaComprasFiltrada.length === 0 && (
+                  <p className="text-slate-500 text-sm text-center py-10">Nenhum item encontrado.</p>
                 )}
               </div>
             </div>
           </div>
         )}
 
+        {/* GUIA 3: HISTÓRICO */}
         {activeTab === 'historico' && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-            <h2 className="text-xl font-bold text-teal-400 mb-6">📊 Histórico de Movimentações</h2>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+              <h2 className="text-xl font-bold text-teal-400">📊 Histórico de Movimentações</h2>
+              {/* BARRA DE PESQUISA DO HISTÓRICO */}
+              <div className="w-full sm:w-72">
+                <input 
+                  type="text" 
+                  value={buscaHistorico} 
+                  onChange={e => setBuscaHistorico(e.target.value)}
+                  placeholder="🔍 Pesquisar no histórico..." 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs focus:border-teal-500 outline-none text-slate-200"
+                />
+              </div>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
@@ -892,7 +947,7 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/50">
-                  {historico.map(h => (
+                  {historicoFiltrado.map(h => (
                     <tr key={h.id} className="hover:bg-slate-800/30">
                       <td className="py-3 text-xs text-slate-400">{new Date(h.created_at).toLocaleString('pt-BR')}</td>
                       <td className="py-3 font-medium text-slate-200">{h.item}</td>
@@ -906,9 +961,9 @@ export default function Home() {
                       <td className="py-3 text-xs text-slate-400">{h.responsavel || '-'}</td>
                     </tr>
                   ))}
-                  {historico.length === 0 && (
+                  {historicoFiltrado.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-500 text-sm">Nenhum registo no histórico.</td>
+                      <td colSpan={6} className="py-8 text-center text-slate-500 text-sm">Nenhum registo encontrado.</td>
                     </tr>
                   )}
                 </tbody>
