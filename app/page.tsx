@@ -18,6 +18,7 @@ export default function Home() {
 
   const [expandedItems, setExpandedItems] = useState<{ [key: string]: boolean }>({});
   const [precosAtuais, setPrecosAtuais] = useState<{ [key: string]: string }>({});
+  const [quantidadesCompra, setQuantidadesCompra] = useState<{ [key: string]: number }>({});
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [item, setItem] = useState('');
@@ -42,7 +43,14 @@ export default function Home() {
     if (despensaData) setInventario(despensaData);
 
     const { data: comprasData } = await supabase.from('lista_compras').select('*').order('id', { ascending: false });
-    if (comprasData) setListaCompras(comprasData);
+    if (comprasData) {
+      setListaCompras(comprasData);
+      const qtdsIniciais: { [key: string]: number } = {};
+      comprasData.forEach((c: any) => {
+        qtdsIniciais[c.id] = 1;
+      });
+      setQuantidadesCompra(prev => ({ ...qtdsIniciais, ...prev }));
+    }
 
     const { data: historicoData } = await supabase.from('historico_movimentacoes').select('*').order('created_at', { ascending: false }).limit(200);
     if (historicoData) setHistorico(historicoData);
@@ -68,11 +76,16 @@ export default function Home() {
     return { menor, media };
   }
 
-  // Calculadora de Compras: Soma o preço atual de todos os itens da lista que foram preenchidos
   const totalCalculadoraCompras = listaCompras.reduce((acc, c) => {
-    const val = parseFloat(precosAtuais[c.id]) || 0;
-    return acc + val;
+    const precoUnit = parseFloat(precosAtuais[c.id]) || 0;
+    const qtdComprar = intToNumber(quantidadesCompra[c.id]);
+    return acc + (precoUnit * qtdComprar);
   }, 0);
+
+  function intToNumber(val: any) {
+    const n = parseInt(val);
+    return isNaN(n) || n < 1 ? 1 : n;
+  }
 
   async function enviarAlertaTelegram(mensagem: string) {
     try {
@@ -207,7 +220,7 @@ export default function Home() {
     if (!item.trim()) return alert('Insere o nome do item.');
 
     const precoNum = preco ? parseFloat(preco) : 0;
-    const qtdNum = parseInt(quantidade.toString()) || 1;
+    const qtdNum = intToNumber(quantidade);
     const precoUnit = precoNum / qtdNum;
 
     if (editingId) {
@@ -433,7 +446,7 @@ export default function Home() {
                     <input 
                       type="number" 
                       value={quantidade} 
-                      onChange={e => setQuantidade(Number(e.target.value))} 
+                      onChange={e => setQuantidade(intToNumber(e.target.value))} 
                       min="1" 
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
                       required 
@@ -674,7 +687,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* GUIA 2: LISTA DE COMPRAS COM CALCULADORA E VISTA OTIMIZADA PARA TELEMÓVEL */}
+        {/* GUIA 2: LISTA DE COMPRAS */}
         {activeTab === 'compras' && (
           <div className="space-y-6">
             <input 
@@ -686,7 +699,6 @@ export default function Home() {
               className="hidden" 
             />
 
-            {/* PAINEL CALCULADORA DE COMPRAS (Soma total em tempo real) */}
             <div className="bg-gradient-to-r from-amber-950/80 to-slate-900 border border-amber-800/80 rounded-2xl p-4 md:p-6 shadow-xl flex justify-between items-center">
               <div>
                 <p className="text-xs text-amber-400 font-semibold uppercase tracking-wider">Calculadora do Carrinho</p>
@@ -708,20 +720,18 @@ export default function Home() {
                 {listaCompras.map(c => {
                   const { menor, media } = calcularEstatisticasPreco(c.item);
                   const precoAtualVal = precosAtuais[c.id] || '';
+                  const qtdComprarVal = quantidadesCompra[c.id] !== undefined ? quantidadesCompra[c.id] : 1;
 
                   return (
                     <div key={c.id} className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl space-y-2.5 shadow">
                       
-                      {/* Linha 1: Nome do Item e Badge */}
                       <div className="flex justify-between items-center">
                         <span className="font-semibold text-sm text-slate-100 truncate pr-2">❌ {c.item}</span>
                         <span className="text-[10px] text-amber-500 bg-amber-950/40 border border-amber-900 px-2.5 py-0.5 rounded-full font-medium shrink-0">Pendente</span>
                       </div>
 
-                      {/* Linha 2: Os Três Preços e Botão de Leitura de Etiqueta com IA */}
-                      <div className="grid grid-cols-4 gap-1.5 items-center">
+                      <div className="grid grid-cols-5 gap-1.5 items-center">
                         
-                        {/* Menor Preço */}
                         <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center">
                           <span className="block text-[9px] text-slate-400">Menor</span>
                           <span className="font-bold text-emerald-400 text-[11px] truncate block">
@@ -729,7 +739,6 @@ export default function Home() {
                           </span>
                         </div>
 
-                        {/* Preço Médio */}
                         <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center">
                           <span className="block text-[9px] text-slate-400">Médio</span>
                           <span className="font-bold text-blue-400 text-[11px] truncate block">
@@ -737,20 +746,32 @@ export default function Home() {
                           </span>
                         </div>
 
-                        {/* Input de Preço Atual */}
                         <div className="relative">
-                          <span className="absolute left-1.5 top-1.5 text-[9px] text-slate-400">R$</span>
+                          <span className="absolute left-1 top-1.5 text-[9px] text-slate-400">R$</span>
                           <input 
                             type="number" 
                             step="0.01" 
                             value={precoAtualVal} 
                             onChange={(e) => setPrecosAtuais({ ...precosAtuais, [c.id]: e.target.value })}
                             placeholder="Atual" 
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-slate-200 text-center font-bold"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-4 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-slate-200 text-center font-bold"
+                            title="Preço Atual"
                           />
                         </div>
 
-                        {/* Botão de Ler Etiqueta com IA */}
+                        <div className="relative">
+                          <span className="absolute left-1 top-1.5 text-[9px] text-slate-400">Qtd</span>
+                          <input 
+                            type="number" 
+                            min="1"
+                            value={qtdComprarVal} 
+                            onChange={(e) => setQuantidadesCompra({ ...quantidadesCompra, [c.id]: intToNumber(e.target.value) })}
+                            placeholder="Qtd" 
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-amber-300 text-center font-bold"
+                            title="Quantidade a Comprar"
+                          />
+                        </div>
+
                         <button
                           type="button"
                           onClick={() => {
@@ -758,7 +779,7 @@ export default function Home() {
                             comprasFileInputRef.current?.click();
                           }}
                           disabled={loadingIA}
-                          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-1.5 px-2 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 shadow transition disabled:opacity-50 h-full"
+                          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-1.5 px-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 shadow transition disabled:opacity-50 h-full truncate"
                           title="Ler etiqueta de preço com IA"
                         >
                           {loadingIA && comprasFileId === c.id ? '⏳' : '📸 Ler'}
