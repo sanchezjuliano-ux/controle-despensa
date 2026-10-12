@@ -51,33 +51,77 @@ export default function Home() {
       setListaCompras(comprasData);
       const qtdsIniciais: { [key: string]: number } = {};
       comprasData.forEach((c: any) => {
-        qtdsIniciais[c.id] = 1;
+        qtdsIniciais[c.id] = c.quantidade_sugerida || 1;
       });
       setQuantidadesCompra(prev => ({ ...qtdsIniciais, ...prev }));
     }
 
-    const { data: historicoData } = await supabase.from('historico_movimentacoes').select('*').order('created_at', { ascending: false }).limit(200);
+    const { data: historicoData } = await supabase.from('historico_movimentacoes').select('*').order('created_at', { ascending: false }).limit(300);
     if (historicoData) setHistorico(historicoData);
   }
 
-  function calcularEstatisticasPreco(nomeItem: string) {
-    const entradasItem = historico.filter(h => 
-      h.tipo_movimento === 'entrada' && 
-      h.item && 
-      h.item.toLowerCase().includes(nomeItem.toLowerCase()) && 
-      h.preco_unitario > 0
-    );
+  // --- ANÁLISES PREDITIVAS E ESTATÍSTICAS ---
+  function analisarItem(nomeItem: string, qtdAtual: number) {
+    const movimentacoes = historico
+      .filter(h => h.item && h.item.toLowerCase().includes(nomeItem.toLowerCase()))
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-    if (entradasItem.length === 0) {
-      return { menor: 0, media: 0 };
+    let totalDias = 0;
+    let ciclos = 0;
+    let ultimaEntrada: Date | null = null;
+    const precosHistorico: { data: string; preco: number }[] = [];
+
+    for (const mov of movimentacoes) {
+      const dataMov = new Date(mov.created_at);
+      if (mov.tipo_movimento === 'entrada') {
+        ultimaEntrada = dataMov;
+        if (mov.preco_unitario > 0) {
+          precosHistorico.push({
+            data: dataMov.toLocaleDateString('pt-BR'),
+            preco: Number(mov.preco_unitario)
+          });
+        }
+      } else if (mov.tipo_movimento === 'saida' && ultimaEntrada) {
+        const diffDays = Math.ceil(Math.abs(dataMov.getTime() - ultimaEntrada.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays > 0) {
+          totalDias += diffDays;
+          ciclos++;
+        }
+        ultimaEntrada = null;
+      }
     }
 
-    const precos = entradasItem.map(h => Number(h.preco_unitario));
-    const menor = Math.min(...precos);
-    const soma = precos.reduce((acc, curr) => acc + curr, 0);
-    const media = soma / precos.length;
+    const mediaDiasConsumo = ciclos > 0 ? Math.round(totalDias / ciclos) : 0;
+    
+    // Data estimada de término
+    let dataTerminoFmt = 'Indefinido';
+    if (mediaDiasConsumo > 0 && qtdAtual > 0) {
+      const diasRestantes = mediaDiasConsumo * qtdAtual;
+      const dataEstimada = new Date();
+      dataEstimada.setDate(dataEstimada.getDate() + diasRestantes);
+      dataTerminoFmt = dataEstimada.toLocaleDateString('pt-BR');
+    }
 
-    return { menor, media };
+    const precosValidos = precosHistorico.map(p => p.preco);
+    const menor = precosValidos.length > 0 ? Math.min(...precosValidos) : 0;
+    const mediaPreco = precosValidos.length > 0 ? precosValidos.reduce((a, b) => a + b, 0) / precosValidos.length : 0;
+
+    return {
+      mediaDiasConsumo,
+      dataTerminoFmt,
+      menor,
+      mediaPreco,
+      precosHistorico
+    };
+  }
+
+  // Sugestão automática de compra com base no consumo mensal (30 dias)
+  function calcularSugestaoCompra(nomeItem: string) {
+    const { mediaDiasConsumo } = analisarItem(nomeItem, 1);
+    if (mediaDiasConsumo <= 0) return 1;
+    // Quantidade consumida num ciclo de 30 dias
+    const sugestao = Math.ceil(30 / mediaDiasConsumo);
+    return sugestao < 1 ? 1 : sugestao;
   }
 
   const totalCalculadoraCompras = listaCompras.reduce((acc, c) => {
@@ -387,7 +431,7 @@ export default function Home() {
     }]);
 
     if (novaQtd === 0) {
-      await supabase.from('lista_compras').insert([{ item: itemName }]);
+      await supabase.from('lista_compras').insert([{ item: itemName, quantidade_sugerida: calcularSugestaoCompra(itemName) }]);
       await enviarAlertaTelegram(`🚨 ALERTA DESPENSA: O item *${itemName}* ACABOU e foi movido para a lista de compras!`);
     } else if (novaQtd === 1) {
       await enviarAlertaTelegram(`⚠️ ALERTA DESPENSA: O item *${itemName}* está a ACABAR (Resta apenas 1 unidade).`);
@@ -468,6 +512,7 @@ export default function Home() {
 
       <main className="flex-1 p-4 md:p-8 overflow-y-auto max-w-5xl">
         
+        {/* GUIA 1: DESPENSA */}
         {activeTab === 'despensa' && (
           <div className="space-y-6">
             
@@ -651,6 +696,14 @@ export default function Home() {
                 {inventarioFiltrado.map(prod => {
                   const isExpanded = expandedItems[prod.id];
                   const isEsgotado = prod.quantidade === 0;
+                  const stats = analisarItem(prod.item, prod.quantidade);
+
+                  // Alerta de validade crítica (vence em menos de 7 dias)
+                  let alertaValidade = false;
+                  if (prod.validade) {
+                    const diffDiasValidade = Math.ceil((new Date(prod.validade).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                    if (diffDiasValidade <= 7 && diffDiasValidade >= 0) alertaValidade = true;
+                  }
 
                   return (
                     <div 
@@ -658,6 +711,8 @@ export default function Home() {
                       className={`border rounded-xl p-3 shadow transition ${
                         isEsgotado 
                           ? 'bg-red-950/40 border-red-800 text-red-100' 
+                          : alertaValidade 
+                          ? 'bg-amber-950/40 border-amber-800 text-amber-100'
                           : 'bg-slate-950 border-slate-800/80 text-slate-100'
                       }`}
                     >
@@ -702,9 +757,11 @@ export default function Home() {
                       </div>
 
                       {isExpanded && (
-                        <div className="mt-3 pt-2.5 border-t border-slate-800/80 text-xs text-slate-300 space-y-1">
-                          <p>📅 Validade: <span className="text-slate-100">{prod.validade || 'Sem data'}</span></p>
-                          <p>💰 Preço Unitário: <span className="text-slate-100">R$ {Number(prod.preco_unitario || 0).toFixed(2)}</span></p>
+                        <div className="mt-3 pt-2.5 border-t border-slate-800/80 text-xs text-slate-300 space-y-1.5 animate-fadeIn">
+                          <p>📅 Validade: <span className={alertaValidade ? 'text-amber-400 font-bold' : 'text-slate-100'}>{prod.validade || 'Sem data'} {alertaValidade && '⚠️ Vence em breve!'}</span></p>
+                          <p>💰 Preço Unitário: <span className="text-slate-100">{Number(prod.preco_unitario || 0).toFixed(2)}</span></p>
+                          <p>⏳ Consumo Médio: <span className="text-emerald-400 font-medium">{stats.mediaDiasConsumo > 0 ? `Dura aprox. ${stats.mediaDiasConsumo} dias` : 'Calculando...'}</span></p>
+                          <p>🔮 Previsão de Término: <span className="text-amber-400 font-medium">{stats.dataTerminoFmt}</span></p>
                           <p>🏷️ Categoria: <span className="text-slate-100">{prod.categoria || 'Mercearia'}</span></p>
                           <p>📍 Local: <span className="text-slate-100">{prod.local || 'Armário'}</span></p>
                         </div>
@@ -724,6 +781,7 @@ export default function Home() {
                       <th className="pb-3">Item</th>
                       <th className="pb-3 text-center">Qtd</th>
                       <th className="pb-3">Validade</th>
+                      <th className="pb-3">Consumo / Término</th>
                       <th className="pb-3">Preço Un.</th>
                       <th className="pb-3 text-right">Ações</th>
                     </tr>
@@ -731,16 +789,30 @@ export default function Home() {
                   <tbody className="divide-y divide-slate-800/50">
                     {inventarioFiltrado.map(prod => {
                       const isEsgotado = prod.quantidade === 0;
+                      const stats = analisarItem(prod.item, prod.quantidade);
+                      let alertaValidade = false;
+                      if (prod.validade) {
+                        const diffDiasValidade = Math.ceil((new Date(prod.validade).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                        if (diffDiasValidade <= 7 && diffDiasValidade >= 0) alertaValidade = true;
+                      }
+
                       return (
-                        <tr key={prod.id} className={`hover:bg-slate-800/30 ${isEsgotado ? 'bg-red-950/20 text-red-200' : ''}`}>
+                        <tr key={prod.id} className={`hover:bg-slate-800/30 ${isEsgotado ? 'bg-red-950/20 text-red-200' : alertaValidade ? 'bg-amber-950/20 text-amber-200' : ''}`}>
                           <td className="py-3.5 font-medium">
                             {prod.item}
                             {prod.quantidade === 0 && <span className="ml-2 text-xs bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Acabou</span>}
                             {prod.quantidade === 1 && <span className="ml-2 text-xs bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Acabando</span>}
                           </td>
                           <td className="py-3.5 text-center font-bold">{prod.quantidade}</td>
-                          <td className="py-3.5 text-xs text-slate-400">{prod.validade || 'Sem data'}</td>
-                          <td className="py-3.5 text-slate-300">R$ {Number(prod.preco_unitario || 0).toFixed(2)}</td>
+                          <td className="py-3.5 text-xs text-slate-400">
+                            {prod.validade || 'Sem data'}
+                            {alertaValidade && <span className="block text-[10px] text-amber-400 font-bold">⚠️ Vence em breve</span>}
+                          </td>
+                          <td className="py-3.5 text-xs text-slate-300">
+                            <span className="block text-emerald-400">{stats.mediaDiasConsumo > 0 ? `${stats.mediaDiasConsumo} dias/ciclo` : '-'}</span>
+                            <span className="block text-[10px] text-slate-400">Acaba em: {stats.dataTerminoFmt}</span>
+                          </td>
+                          <td className="py-3.5 text-slate-300">{Number(prod.preco_unitario || 0).toFixed(2)}</td>
                           <td className="py-3.5 text-right space-x-1.5">
                             <button 
                               onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
@@ -769,7 +841,7 @@ export default function Home() {
                     })}
                     {inventarioFiltrado.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="py-8 text-center text-slate-500 text-sm">Nenhum item encontrado.</td>
+                        <td colSpan={6} className="py-8 text-center text-slate-500 text-sm">Nenhum item encontrado.</td>
                       </tr>
                     )}
                   </tbody>
@@ -780,7 +852,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* GUIA 2: LISTA DE COMPRAS COM VALORES INTEIROS SEM 'R$' */}
+        {/* GUIA 2: LISTA DE COMPRAS COM VALORES INTEIROS SEM 'R$' E SUGESTÃO INTELIGENTE */}
         {activeTab === 'compras' && (
           <div className="space-y-6">
             <input 
@@ -829,9 +901,9 @@ export default function Home() {
               
               <div className="space-y-3">
                 {listaComprasFiltrada.map(c => {
-                  const { menor, media } = calcularEstatisticasPreco(c.item);
+                  const { menor, media } = analisarItem(c.item, 0);
                   const precoAtualVal = precosAtuais[c.id] || '';
-                  const qtdComprarVal = quantidadesCompra[c.id] !== undefined ? quantidadesCompra[c.id] : 1;
+                  const qtdComprarVal = quantidadesCompra[c.id] !== undefined ? quantidadesCompra[c.id] : calcularSugestaoCompra(c.item);
 
                   return (
                     <div key={c.id} className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl space-y-2.5 shadow">
@@ -841,10 +913,9 @@ export default function Home() {
                         <span className="text-[10px] text-amber-500 bg-amber-950/40 border border-amber-900 px-2.5 py-0.5 rounded-full font-medium shrink-0">Pendente</span>
                       </div>
 
-                      {/* Grelha limpa: Sem 'R$' nos blocos de Menor e Médio, mostrando o valor numérico inteiro sem cortes */}
+                      {/* Grelha limpa: Valores inteiros sem 'R$' e layout perfeitamente ajustado */}
                       <div className="grid grid-cols-[1fr_1fr_80px_55px_42px] gap-1.5 items-center">
                         
-                        {/* Menor Preço (Apenas número inteiro) */}
                         <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center min-w-0">
                           <span className="block text-[9px] text-slate-400 uppercase tracking-wider">Menor</span>
                           <span className="font-bold text-emerald-400 text-xs truncate block">
@@ -852,7 +923,6 @@ export default function Home() {
                           </span>
                         </div>
 
-                        {/* Preço Médio (Apenas número inteiro) */}
                         <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center min-w-0">
                           <span className="block text-[9px] text-slate-400 uppercase tracking-wider">Médio</span>
                           <span className="font-bold text-blue-400 text-xs truncate block">
@@ -860,7 +930,6 @@ export default function Home() {
                           </span>
                         </div>
 
-                        {/* Input Preço Atual */}
                         <div className="relative">
                           <span className="absolute left-1.5 top-2 text-[9px] text-slate-400">R$</span>
                           <input 
@@ -874,7 +943,6 @@ export default function Home() {
                           />
                         </div>
 
-                        {/* Input Quantidade */}
                         <div className="relative">
                           <span className="absolute left-1 top-2 text-[9px] text-slate-400">Qtd</span>
                           <input 
@@ -884,11 +952,10 @@ export default function Home() {
                             onChange={(e) => setQuantidadesCompra({ ...quantidadesCompra, [c.id]: intToNumber(e.target.value) })}
                             placeholder="Qtd" 
                             className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-amber-300 text-center font-bold"
-                            title="Quantidade a Comprar"
+                            title="Quantidade Sugerida / a Comprar"
                           />
                         </div>
 
-                        {/* Botão de Ler Compacto */}
                         <button
                           type="button"
                           onClick={() => {
