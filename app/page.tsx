@@ -18,7 +18,6 @@ export default function Home() {
 
   const [expandedItems, setExpandedItems] = useState<{ [key: string]: boolean }>({});
 
-  // Estados do Formulário e Edição
   const [editingId, setEditingId] = useState<string | null>(null);
   const [item, setItem] = useState('');
   const [quantidade, setQuantidade] = useState(1);
@@ -262,47 +261,45 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row font-sans">
-      {/* BARRA LATERAL (Sidebar vertical no PC / Barra superior em linha única no Telemóvel) */}
       <aside className="w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 p-4 md:p-5 flex flex-col md:justify-between">
         <div className="flex flex-col md:flex-row md:items-center justify-between">
-          <div className="flex items-center gap-2 mb-4 md:mb-8">
+          <div className="flex items-center gap-2 mb-3 md:mb-8">
             <span className="text-xl md:text-2xl">📦</span>
             <h1 className="text-base md:text-lg font-bold text-slate-100">Controle Despensa</h1>
           </div>
 
-          {/* Navegação: Linha única scrollável no telemóvel, vertical no PC */}
-          <nav className="flex md:flex-col gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
+          <nav className="flex md:flex-col gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
             <button
               onClick={() => setActiveTab('despensa')}
-              className={`whitespace-nowrap px-3.5 py-2.5 md:px-4 md:py-3 rounded-xl font-medium text-xs md:text-sm transition flex items-center gap-2 md:gap-3 shrink-0 ${
+              className={`whitespace-nowrap px-3.5 py-2 md:px-4 md:py-3 rounded-xl font-medium text-xs md:text-sm transition flex items-center gap-2 md:gap-3 shrink-0 ${
                 activeTab === 'despensa' 
                   ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950' 
                   : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
               }`}
             >
-              <span>📦</span> <span className="inline">Despensa / Stock</span>
+              <span>📦</span> <span>Despensa / Stock</span>
             </button>
 
             <button
               onClick={() => setActiveTab('compras')}
-              className={`whitespace-nowrap px-3.5 py-2.5 md:px-4 md:py-3 rounded-xl font-medium text-xs md:text-sm transition flex items-center gap-2 md:gap-3 shrink-0 ${
+              className={`whitespace-nowrap px-3.5 py-2 md:px-4 md:py-3 rounded-xl font-medium text-xs md:text-sm transition flex items-center gap-2 md:gap-3 shrink-0 ${
                 activeTab === 'compras' 
                   ? 'bg-amber-600 text-white shadow-lg shadow-amber-950' 
                   : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
               }`}
             >
-              <span>🛒</span> <span className="inline">Lista de Compras</span>
+              <span>🛒</span> <span>Lista de Compras</span>
             </button>
 
             <button
               onClick={() => setActiveTab('historico')}
-              className={`whitespace-nowrap px-3.5 py-2.5 md:px-4 md:py-3 rounded-xl font-medium text-xs md:text-sm transition flex items-center gap-2 md:gap-3 shrink-0 ${
+              className={`whitespace-nowrap px-3.5 py-2 md:px-4 md:py-3 rounded-xl font-medium text-xs md:text-sm transition flex items-center gap-2 md:gap-3 shrink-0 ${
                 activeTab === 'historico' 
                   ? 'bg-teal-600 text-white shadow-lg shadow-teal-950' 
                   : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
               }`}
             >
-              <span>📊</span> <span className="inline">Histórico</span>
+              <span>📊</span> <span>Histórico</span>
             </button>
           </nav>
         </div>
@@ -312,14 +309,11 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto max-w-5xl">
         
-        {/* GUIA 1: DESPENSA */}
         {activeTab === 'despensa' && (
           <div className="space-y-6">
             
-            {/* BOTÕES DE NOVO LANÇAMENTO E LEITOR DE IA */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-3 bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-lg">
               <button
                 onClick={() => {
@@ -355,9 +349,8 @@ export default function Home() {
               </div>
             </div>
 
-            {/* CAIXA DE LANÇAMENTO / EDIÇÃO OCULTÁVEL */}
             {mostrarFormulario && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl animate-fadeIn">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
                 <h2 className="text-xl font-bold text-emerald-400 mb-4">
                   {editingId ? '✏️ Editar Item' : '📥 Novo Lançamento'}
                 </h2>
@@ -483,5 +476,203 @@ export default function Home() {
               </div>
             )}
 
-            {/* INVENTÁRIO ATUAL */}
-            <div className="bg-slate-900
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl">
+              <h2 className="text-xl font-bold text-emerald-400 mb-4">Inventário Atual</h2>
+              
+              {/* VISTA DE TELEMÓVEL (<768px) */}
+              <div className="block md:hidden space-y-2.5">
+                {inventario.map(prod => {
+                  const isExpanded = expandedItems[prod.id];
+                  const isCritical = prod.quantidade <= 1;
+
+                  return (
+                    <div 
+                      key={prod.id} 
+                      className={`border rounded-xl p-3 shadow transition ${
+                        isCritical 
+                          ? 'bg-red-950/40 border-red-800 text-red-100' 
+                          : 'bg-slate-950 border-slate-800/80 text-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className="font-semibold text-sm truncate">{prod.item}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded font-bold shrink-0 ${isCritical ? 'bg-red-900 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                            x{prod.quantidade}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button 
+                            onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
+                            className="bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2 py-1 rounded-lg text-xs font-medium"
+                            title="Consumir 1"
+                          >
+                            -1
+                          </button>
+                          <button 
+                            onClick={() => iniciarEdicao(prod)}
+                            className="bg-blue-950/80 hover:bg-blue-900 text-blue-300 border border-blue-800 p-1.5 rounded-lg text-xs"
+                            title="Editar"
+                          >
+                            ✏️
+                          </button>
+                          <button 
+                            onClick={() => excluirItem(prod.id, prod.item)}
+                            className="bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800 p-1.5 rounded-lg text-xs"
+                            title="Excluir"
+                          >
+                            🗑️
+                          </button>
+                          <button 
+                            onClick={() => toggleExpand(prod.id)}
+                            className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-1.5 rounded-lg text-xs font-bold"
+                            title="Ver Detalhes"
+                          >
+                            {isExpanded ? '▲' : '▼'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="mt-3 pt-2.5 border-t border-slate-800/80 text-xs text-slate-300 space-y-1">
+                          <p>📅 Validade: <span className="text-slate-100">{prod.validade || 'Sem data'}</span></p>
+                          <p>💰 Preço Unitário: <span className="text-slate-100">R$ {Number(prod.preco_unitario || 0).toFixed(2)}</span></p>
+                          <p>🏷️ Categoria: <span className="text-slate-100">{prod.categoria || 'Mercearia'}</span></p>
+                          <p>📍 Local: <span className="text-slate-100">{prod.local || 'Armário'}</span></p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {inventario.length === 0 && (
+                  <p className="py-8 text-center text-slate-500 text-sm">Nenhum item registado na despensa.</p>
+                )}
+              </div>
+
+              {/* VISTA DE PC (≥768px) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 text-xs">
+                      <th className="pb-3">Item</th>
+                      <th className="pb-3 text-center">Qtd</th>
+                      <th className="pb-3">Validade</th>
+                      <th className="pb-3">Preço Un.</th>
+                      <th className="pb-3 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {inventario.map(prod => {
+                      const isCritical = prod.quantidade <= 1;
+                      return (
+                        <tr key={prod.id} className={`hover:bg-slate-800/30 ${isCritical ? 'bg-red-950/20 text-red-200' : ''}`}>
+                          <td className="py-3.5 font-medium">
+                            {prod.item}
+                            {prod.quantidade === 0 && <span className="ml-2 text-xs bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Acabou</span>}
+                            {prod.quantidade === 1 && <span className="ml-2 text-xs bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Acabando</span>}
+                          </td>
+                          <td className="py-3.5 text-center font-bold">{prod.quantidade}</td>
+                          <td className="py-3.5 text-xs text-slate-400">{prod.validade || 'Sem data'}</td>
+                          <td className="py-3.5 text-slate-300">R$ {Number(prod.preco_unitario || 0).toFixed(2)}</td>
+                          <td className="py-3.5 text-right space-x-1.5">
+                            <button 
+                              onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
+                              className="bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                              title="Consumir 1 unidade"
+                            >
+                              -1
+                            </button>
+                            <button 
+                              onClick={() => iniciarEdicao(prod)}
+                              className="bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                              title="Editar item"
+                            >
+                              ✏️ Editar
+                            </button>
+                            <button 
+                              onClick={() => excluirItem(prod.id, prod.item)}
+                              className="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                              title="Excluir item"
+                            >
+                              🗑️
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {inventario.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-slate-500 text-sm">Nenhum item registado na despensa.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'compras' && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <h2 className="text-xl font-bold text-amber-400 mb-6">🛒 Lista de Compras (Itens Esgotados)</h2>
+            <ul className="space-y-3">
+              {listaCompras.map(c => (
+                <li key={c.id} className="bg-slate-950 border border-slate-800 p-4 rounded-xl flex justify-between items-center text-sm">
+                  <span className="font-medium text-slate-200">❌ {c.item}</span>
+                  <span className="text-xs text-amber-500 bg-amber-950/40 border border-amber-900 px-3 py-1 rounded-full">Pendente</span>
+                </li>
+              ))}
+              {listaCompras.length === 0 && (
+                <p className="text-slate-500 text-sm text-center py-10">Tudo em ordem! Nenhum item em falta na despensa.</p>
+              )}
+            </ul>
+          </div>
+        )}
+
+        {activeTab === 'historico' && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <h2 className="text-xl font-bold text-teal-400 mb-6">📊 Histórico de Movimentações</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 text-xs">
+                    <th className="pb-3">Data</th>
+                    <th className="pb-3">Item</th>
+                    <th className="pb-3">Tipo</th>
+                    <th className="pb-3 text-center">Qtd</th>
+                    <th className="pb-3">Loja</th>
+                    <th className="pb-3">Responsável</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/50">
+                  {historico.map(h => (
+                    <tr key={h.id} className="hover:bg-slate-800/30">
+                      <td className="py-3 text-xs text-slate-400">{new Date(h.created_at).toLocaleString('pt-BR')}</td>
+                      <td className="py-3 font-medium text-slate-200">{h.item}</td>
+                      <td className="py-3">
+                        <span className={`text-xs px-2.5 py-1 rounded-full border ${h.tipo_movimento === 'entrada' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-red-950 text-red-400 border-red-800'}`}>
+                          {h.tipo_movimento}
+                        </span>
+                      </td>
+                      <td className="py-3 text-center font-bold">{h.quantidade}</td>
+                      <td className="py-3 text-xs text-slate-400">{h.loja || '-'}</td>
+                      <td className="py-3 text-xs text-slate-400">{h.responsavel || '-'}</td>
+                    </tr>
+                  ))}
+                  {historico.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-500 text-sm">Nenhum registo no histórico.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+      </main>
+    </div>
+  );
+}
