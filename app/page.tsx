@@ -25,6 +25,9 @@ export default function GestaoDespensa() {
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<any>({});
+  
+  // Estado tático para expandir cartões do inventário no mobile
+  const [expandedInvId, setExpandedInvId] = useState<number | null>(null);
 
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutLoja, setCheckoutLoja] = useState('');
@@ -324,11 +327,9 @@ export default function GestaoDespensa() {
              <header><h2 className="text-2xl font-bold text-white">Inventário da Despensa</h2></header>
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
               
-              {/* Overlay do Formulário no Mobile / Bloco Normal no Desktop */}
               <div className={`${showFormMobile ? 'fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-sm p-4' : 'hidden lg:block'} lg:static lg:flex lg:items-start lg:justify-start lg:bg-transparent lg:backdrop-blur-none lg:p-0`}>
                 <div className="bg-[#111827] w-full border border-gray-700 lg:border-gray-800 rounded-2xl lg:rounded-xl p-6 h-fit shadow-2xl lg:shadow-sm relative animate-slide-up lg:animate-none">
                   
-                  {/* Botão de Fechar Exclusivo do Mobile */}
                   <button type="button" onClick={() => setShowFormMobile(false)} className="lg:hidden absolute top-4 right-4 text-gray-400 hover:text-white bg-gray-800/50 rounded-full p-2 w-8 h-8 flex items-center justify-center">
                     ✕
                   </button>
@@ -358,60 +359,143 @@ export default function GestaoDespensa() {
                 </div>
               </div>
 
-              <div className="lg:col-span-2 bg-[#111827] border border-gray-800 rounded-xl overflow-hidden shadow-sm">
-                <div className="overflow-x-auto w-full">
-                  <table className="w-full text-left border-collapse min-w-full">
-                    <thead>
-                      <tr className="border-b border-gray-800 text-[10px] md:text-xs text-gray-400 bg-gray-900/50">
-                        <th className="p-4 uppercase">Item</th>
-                        <th className="p-4 uppercase w-16 md:w-auto">Qtd</th>
-                        <th className="hidden md:table-cell p-4 uppercase">Local</th>
-                        <th className="hidden sm:table-cell p-4 uppercase">Preço</th>
-                        <th className="p-4 uppercase text-right">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loading ? ( <tr><td colSpan={5} className="text-center py-8">A carregar...</td></tr> ) : itens.map((item) => (
-                        <tr key={item.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
-                          {editingId === item.id ? (
-                            <>
-                              <td className="p-3"><input type="text" className="bg-[#0B0F19] border border-gray-700 w-full min-w-[120px] text-sm rounded px-3 py-2" value={editForm.item} onChange={(e) => setEditForm({...editForm, item: e.target.value})} /></td>
-                              <td className="p-3"><input type="number" inputMode="numeric" pattern="[0-9]*" className="bg-[#0B0F19] border border-gray-700 w-16 text-sm rounded px-2 py-2 text-center" value={editForm.quantidade} onChange={(e) => setEditForm({...editForm, quantidade: e.target.value})} /></td>
-                              <td className="hidden md:table-cell p-3"><select className="bg-[#0B0F19] border border-gray-700 w-full text-sm rounded px-2 py-2 mb-1 block" value={editForm.local} onChange={(e) => setEditForm({...editForm, local: e.target.value})}><option>Armário</option><option>Frigorífico</option><option>Arca</option></select></td>
-                              <td className="hidden sm:table-cell p-3"><input type="number" step="0.01" inputMode="decimal" className="bg-[#0B0F19] border border-gray-700 w-24 text-sm rounded px-2 py-2" value={editForm.preco_unitario} onChange={(e) => setEditForm({...editForm, preco_unitario: e.target.value})} /></td>
-                              <td className="p-3">
-                                <div className="flex flex-col sm:flex-row gap-2 justify-end">
-                                  <button onClick={salvarEdicao} className="text-green-400 font-bold bg-green-900/20 px-4 py-2 rounded-lg">Ok</button>
-                                  <button onClick={cancelarEdicao} className="text-gray-400 bg-gray-800 px-4 py-2 rounded-lg">X</button>
-                                </div>
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="p-4">
-                                <span className="font-medium text-gray-200 text-sm md:text-base block">{item.item}</span>
-                                <span className="md:hidden text-[10px] text-gray-500">{item.local} • R$ {Number(item.preco_unitario || 0).toFixed(2)}</span>
-                              </td>
-                              <td className="p-4 text-gray-400 font-medium">{item.quantidade} <span className="text-[10px] text-gray-600">un</span></td>
-                              <td className="hidden md:table-cell p-4"><span className="text-gray-500 text-xs block">{item.local}</span><span className="text-gray-400 text-xs">{item.categoria}</span></td>
-                              <td className="hidden sm:table-cell p-4 text-green-400 whitespace-nowrap font-medium">R$ {Number(item.preco_unitario || 0).toFixed(2)}</td>
-                              <td className="p-4">
-                                <div className="flex items-center justify-end gap-3 md:gap-4">
-                                  <button onClick={() => iniciarEdicao(item)} className="text-blue-400 text-sm font-medium py-2 px-1">Editar</button>
-                                  <button onClick={() => darBaixaDespensa(item)} className="text-orange-400 text-sm font-bold bg-orange-900/20 px-3 py-2 rounded-lg">Baixa</button>
-                                </div>
-                              </td>
-                            </>
-                          )}
+              <div className="lg:col-span-2">
+                
+                {/* --- VISÃO DESKTOP (TABELA) --- */}
+                <div className="hidden md:block bg-[#111827] border border-gray-800 rounded-xl overflow-hidden shadow-sm">
+                  <div className="overflow-x-auto w-full">
+                    <table className="w-full text-left border-collapse min-w-full">
+                      <thead>
+                        <tr className="border-b border-gray-800 text-[10px] md:text-xs text-gray-400 bg-gray-900/50">
+                          <th className="p-4 uppercase">Item</th>
+                          <th className="p-4 uppercase w-16 md:w-auto">Qtd</th>
+                          <th className="p-4 uppercase">Local</th>
+                          <th className="p-4 uppercase">Preço</th>
+                          <th className="p-4 uppercase text-right">Ações</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {loading ? ( <tr><td colSpan={5} className="text-center py-8">A carregar...</td></tr> ) : itens.map((item) => (
+                          <tr key={item.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
+                            {editingId === item.id ? (
+                              <>
+                                <td className="p-3"><input type="text" className="bg-[#0B0F19] border border-gray-700 w-full min-w-[120px] text-sm rounded px-3 py-2" value={editForm.item} onChange={(e) => setEditForm({...editForm, item: e.target.value})} /></td>
+                                <td className="p-3"><input type="number" inputMode="numeric" pattern="[0-9]*" className="bg-[#0B0F19] border border-gray-700 w-16 text-sm rounded px-2 py-2 text-center" value={editForm.quantidade} onChange={(e) => setEditForm({...editForm, quantidade: e.target.value})} /></td>
+                                <td className="p-3"><select className="bg-[#0B0F19] border border-gray-700 w-full text-sm rounded px-2 py-2 mb-1 block" value={editForm.local} onChange={(e) => setEditForm({...editForm, local: e.target.value})}><option>Armário</option><option>Frigorífico</option><option>Arca</option></select></td>
+                                <td className="p-3"><input type="number" step="0.01" inputMode="decimal" className="bg-[#0B0F19] border border-gray-700 w-24 text-sm rounded px-2 py-2" value={editForm.preco_unitario} onChange={(e) => setEditForm({...editForm, preco_unitario: e.target.value})} /></td>
+                                <td className="p-3">
+                                  <div className="flex gap-2 justify-end">
+                                    <button onClick={salvarEdicao} className="text-green-400 font-bold bg-green-900/20 px-4 py-2 rounded-lg">Ok</button>
+                                    <button onClick={cancelarEdicao} className="text-gray-400 bg-gray-800 px-4 py-2 rounded-lg">X</button>
+                                  </div>
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="p-4 font-medium text-gray-200 text-sm md:text-base">{item.item}</td>
+                                <td className="p-4 text-gray-400 font-medium">{item.quantidade} <span className="text-[10px] text-gray-600">un</span></td>
+                                <td className="p-4"><span className="text-gray-500 text-xs block">{item.local}</span><span className="text-gray-400 text-xs">{item.categoria}</span></td>
+                                <td className="p-4 text-green-400 whitespace-nowrap font-medium">R$ {Number(item.preco_unitario || 0).toFixed(2)}</td>
+                                <td className="p-4">
+                                  <div className="flex items-center justify-end gap-4">
+                                    <button onClick={() => iniciarEdicao(item)} className="text-blue-400 text-sm font-medium py-2 px-1 hover:text-blue-300">Editar</button>
+                                    <button onClick={() => darBaixaDespensa(item)} className="text-red-400 text-sm font-bold bg-red-900/20 hover:bg-red-900/40 px-3 py-2 rounded-lg transition-colors">Excluir</button>
+                                  </div>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
+
+                {/* --- VISÃO MOBILE (CARTÕES TÁTICOS) --- */}
+                <div className="md:hidden space-y-4">
+                  {loading ? ( <div className="text-center py-8 text-gray-500">A carregar...</div> ) : itens.map((item) => (
+                    <div key={item.id} className="bg-[#111827] border border-gray-800 rounded-xl p-4 shadow-sm">
+                      {editingId === item.id ? (
+                        // MODO DE EDIÇÃO NO CARTÃO
+                        <div className="space-y-4">
+                          <div>
+                             <label className="text-[10px] text-gray-500 uppercase font-bold">Produto</label>
+                             <input type="text" className="w-full bg-[#0B0F19] border border-gray-700 rounded-lg px-3 py-2 text-white font-bold" value={editForm.item} onChange={(e) => setEditForm({...editForm, item: e.target.value})} />
+                          </div>
+                          <div className="flex gap-3">
+                            <div className="w-1/3">
+                               <label className="text-[10px] text-gray-500 uppercase font-bold">Qtd</label>
+                               <input type="number" inputMode="numeric" pattern="[0-9]*" className="w-full bg-[#0B0F19] border border-gray-700 rounded-lg px-3 py-2 text-white font-bold text-center" value={editForm.quantidade} onChange={(e) => setEditForm({...editForm, quantidade: e.target.value})} />
+                            </div>
+                            <div className="w-2/3">
+                               <label className="text-[10px] text-gray-500 uppercase font-bold">Preço</label>
+                               <div className="relative">
+                                  <span className="absolute left-3 top-2.5 text-gray-500 text-sm">R$</span>
+                                  <input type="text" inputMode="decimal" className="w-full bg-[#0B0F19] border border-gray-700 rounded-lg pl-8 pr-3 py-2 text-white font-bold" value={editForm.preco_unitario} onChange={(e) => setEditForm({...editForm, preco_unitario: e.target.value})} />
+                               </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-3">
+                            <div className="w-1/2">
+                              <select className="w-full bg-[#0B0F19] border border-gray-700 rounded-lg px-3 py-2 text-white text-sm" value={editForm.categoria} onChange={(e) => setEditForm({...editForm, categoria: e.target.value})}><option>Mercearia</option><option>Bebidas</option><option>Limpeza</option><option>Talho</option><option>Outros</option></select>
+                            </div>
+                            <div className="w-1/2">
+                              <select className="w-full bg-[#0B0F19] border border-gray-700 rounded-lg px-3 py-2 text-white text-sm" value={editForm.local} onChange={(e) => setEditForm({...editForm, local: e.target.value})}><option>Armário</option><option>Frigorífico</option><option>Arca</option></select>
+                            </div>
+                          </div>
+                          <div className="flex gap-3 pt-2">
+                             <button onClick={cancelarEdicao} className="flex-1 text-gray-400 bg-gray-800 px-4 py-3 rounded-lg font-bold">Cancelar</button>
+                             <button onClick={salvarEdicao} className="flex-1 text-white bg-green-600 px-4 py-3 rounded-lg font-bold">Salvar</button>
+                          </div>
+                        </div>
+                      ) : (
+                        // MODO DE VISUALIZAÇÃO NO CARTÃO
+                        <>
+                          <div className="flex justify-between items-center">
+                            <div className="flex-1 pr-2">
+                              <span className="font-bold text-gray-200 block text-lg truncate">{item.item}</span>
+                              <span className="text-gray-400 font-medium">{item.quantidade} <span className="text-gray-600 text-[10px]">unidades</span></span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => darBaixaDespensa(item)} className="flex items-center justify-center w-10 h-10 bg-red-900/20 hover:bg-red-900/40 text-red-500 rounded-xl transition-colors active:scale-95 text-lg" aria-label="Excluir">
+                                🗑️
+                              </button>
+                              <button onClick={() => iniciarEdicao(item)} className="flex items-center justify-center w-10 h-10 bg-blue-900/20 hover:bg-blue-900/40 text-blue-400 rounded-xl transition-colors active:scale-95 text-lg" aria-label="Editar">
+                                ✏️
+                              </button>
+                              <button onClick={() => setExpandedInvId(expandedInvId === item.id ? null : item.id)} className="flex items-center justify-center w-10 h-10 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl transition-colors active:scale-95 text-lg" aria-label="Expandir">
+                                {expandedInvId === item.id ? '🔼' : '🔽'}
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {/* Compartimento Secreto (Expandido) */}
+                          {expandedInvId === item.id && (
+                            <div className="mt-4 pt-4 border-t border-gray-800/50 grid grid-cols-3 gap-2">
+                               <div>
+                                 <span className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider">Local</span>
+                                 <span className="text-gray-300 text-xs font-medium">{item.local}</span>
+                               </div>
+                               <div>
+                                 <span className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider">Categoria</span>
+                                 <span className="text-gray-300 text-xs font-medium">{item.categoria}</span>
+                               </div>
+                               <div className="text-right">
+                                 <span className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider">Preço</span>
+                                 <span className="text-green-400 font-black text-sm">R$ {Number(item.preco_unitario || 0).toFixed(2)}</span>
+                               </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
               </div>
             </div>
 
-            {/* O Botão de Ação Flutuante (FAB) - Exclusivo Mobile */}
+            {/* O Botão de Ação Flutuante (FAB) */}
             {!showFormMobile && (
               <button 
                 onClick={() => setShowFormMobile(true)}
