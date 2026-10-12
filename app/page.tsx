@@ -17,8 +17,6 @@ export default function Home() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
   const [expandedItems, setExpandedItems] = useState<{ [key: string]: boolean }>({});
-  
-  // Estado para guardar os preços atuais digitados ou lidos por IA na lista de compras { [idCompra]: string }
   const [precosAtuais, setPrecosAtuais] = useState<{ [key: string]: string }>({});
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -32,7 +30,6 @@ export default function Home() {
   const [pagamento, setPagamento] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Referência específica para leitura de etiquetas na lista de compras (guarda o ID do item de compra ativo)
   const [comprasFileId, setComprasFileId] = useState<string | null>(null);
   const comprasFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -51,9 +48,7 @@ export default function Home() {
     if (historicoData) setHistorico(historicoData);
   }
 
-  // Função auxiliar para calcular o Menor Preço e a Média de um item com base no histórico
   function calcularEstatisticasPreco(nomeItem: string) {
-    // Filtra o histórico de entradas para este item (case-insensitive parcial)
     const entradasItem = historico.filter(h => 
       h.tipo_movimento === 'entrada' && 
       h.item && 
@@ -170,7 +165,6 @@ export default function Home() {
     }
   }
 
-  // Leitor de etiqueta específico para a Lista de Compras (Preenche o preço atual do item)
   async function handleAnalisarEtiquetaCompras(e: React.ChangeEvent<HTMLInputElement>, compraId: string) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -307,7 +301,7 @@ export default function Home() {
 
     if (novaQtd === 0) {
       await supabase.from('lista_compras').insert([{ item: itemName }]);
-      await enviarAlertaTelegram(`🚨 ALERTA DESPENSA: O item *${itemName}* ACABOU e foi movido para la lista de compras!`);
+      await enviarAlertaTelegram(`🚨 ALERTA DESPENSA: O item *${itemName}* ACABOU e foi movido para a lista de compras!`);
     } else if (novaQtd === 1) {
       await enviarAlertaTelegram(`⚠️ ALERTA DESPENSA: O item *${itemName}* está a ACABAR (Resta apenas 1 unidade).`);
     }
@@ -539,16 +533,18 @@ export default function Home() {
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl">
               <h2 className="text-xl font-bold text-emerald-400 mb-4">Inventário Atual</h2>
               
+              {/* VISTA DE TELEMÓVEL (<768px): Vermelho APENAS se esgotado (quantidade === 0) */}
               <div className="block md:hidden space-y-2.5">
                 {inventario.map(prod => {
                   const isExpanded = expandedItems[prod.id];
-                  const isCritical = prod.quantidade <= 1;
+                  const isEsgotado = prod.quantidade === 0; // Vermelho APENAS se esgotado
+                  const isAcabando = prod.quantidade === 1;
 
                   return (
                     <div 
                       key={prod.id} 
                       className={`border rounded-xl p-3 shadow transition ${
-                        isCritical 
+                        isEsgotado 
                           ? 'bg-red-950/40 border-red-800 text-red-100' 
                           : 'bg-slate-950 border-slate-800/80 text-slate-100'
                       }`}
@@ -556,7 +552,7 @@ export default function Home() {
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <span className="font-semibold text-sm truncate">{prod.item}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded font-bold shrink-0 ${isCritical ? 'bg-red-900 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                          <span className={`text-xs px-2 py-0.5 rounded font-bold shrink-0 ${isEsgotado ? 'bg-red-900 text-white' : isAcabando ? 'bg-amber-900 text-white' : 'bg-slate-800 text-slate-300'}`}>
                             x{prod.quantidade}
                           </span>
                         </div>
@@ -609,6 +605,7 @@ export default function Home() {
                 )}
               </div>
 
+              {/* VISTA DE PC (≥768px): Vermelho APENAS se esgotado (quantidade === 0) */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
@@ -622,9 +619,9 @@ export default function Home() {
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
                     {inventario.map(prod => {
-                      const isCritical = prod.quantidade <= 1;
+                      const isEsgotado = prod.quantidade === 0;
                       return (
-                        <tr key={prod.id} className={`hover:bg-slate-800/30 ${isCritical ? 'bg-red-950/20 text-red-200' : ''}`}>
+                        <tr key={prod.id} className={`hover:bg-slate-800/30 ${isEsgotado ? 'bg-red-950/20 text-red-200' : ''}`}>
                           <td className="py-3.5 font-medium">
                             {prod.item}
                             {prod.quantidade === 0 && <span className="ml-2 text-xs bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Acabou</span>}
@@ -699,7 +696,6 @@ export default function Home() {
                         <span className="text-xs text-amber-500 bg-amber-950/40 border border-amber-900 px-3 py-1 rounded-full font-medium">Pendente</span>
                       </div>
 
-                      {/* Exibição dos Três Preços */}
                       <div className="grid grid-cols-3 gap-2 bg-slate-900/80 p-3 rounded-lg border border-slate-800 text-center text-xs">
                         <div>
                           <p className="text-slate-400 mb-0.5">Menor Preço</p>
@@ -721,7 +717,6 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* Input de Preço Atual + Botão de Leitura de Etiqueta com IA */}
                       <div className="flex items-center gap-2 pt-1">
                         <div className="relative flex-1">
                           <span className="absolute left-3 top-2.5 text-xs text-slate-400">R$</span>
