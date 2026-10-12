@@ -315,17 +315,18 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row font-sans">
-      <aside className="w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 p-3 md:p-5 flex flex-col md:justify-between">
-        <div className="flex flex-col md:flex-row md:items-center justify-between">
-          <div className="flex items-center gap-2 mb-2.5 md:mb-8">
+      {/* BARRA LATERAL FIXA E BLINDADA CONTRA DESCONFIGURAÇÃO */}
+      <aside className="w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 p-3 md:p-5 flex flex-col md:justify-between shrink-0">
+        <div className="flex flex-col md:flex-col justify-between w-full">
+          <div className="flex items-center gap-2 mb-2 md:mb-6">
             <span className="text-xl md:text-2xl">📦</span>
-            <h1 className="text-sm md:text-lg font-bold text-slate-100 tracking-tight">Controle Despensa</h1>
+            <h1 className="text-sm md:text-base font-bold text-slate-100 tracking-tight whitespace-nowrap">Controle Despensa</h1>
           </div>
 
-          <nav className="grid grid-cols-3 gap-1.5 md:flex md:flex-col md:gap-2 w-full">
+          <nav className="grid grid-cols-3 gap-1 md:flex md:flex-col md:gap-2 w-full">
             <button
               onClick={() => setActiveTab('despensa')}
-              className={`px-2 py-2 md:px-4 md:py-3 rounded-xl font-medium text-[11px] sm:text-xs md:text-sm transition flex items-center justify-center md:justify-start gap-1 md:gap-3 text-center ${
+              className={`px-2 py-2 md:px-4 md:py-3 rounded-xl font-medium text-[11px] md:text-sm transition flex items-center justify-center md:justify-start gap-1.5 md:gap-3 text-center ${
                 activeTab === 'despensa' 
                   ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950' 
                   : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
@@ -336,7 +337,7 @@ export default function Home() {
 
             <button
               onClick={() => setActiveTab('compras')}
-              className={`px-2 py-2 md:px-4 md:py-3 rounded-xl font-medium text-[11px] sm:text-xs md:text-sm transition flex items-center justify-center md:justify-start gap-1 md:gap-3 text-center ${
+              className={`px-2 py-2 md:px-4 md:py-3 rounded-xl font-medium text-[11px] md:text-sm transition flex items-center justify-center md:justify-start gap-1.5 md:gap-3 text-center ${
                 activeTab === 'compras' 
                   ? 'bg-amber-600 text-white shadow-lg shadow-amber-950' 
                   : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
@@ -347,7 +348,7 @@ export default function Home() {
 
             <button
               onClick={() => setActiveTab('historico')}
-              className={`px-2 py-2 md:px-4 md:py-3 rounded-xl font-medium text-[11px] sm:text-xs md:text-sm transition flex items-center justify-center md:justify-start gap-1 md:gap-3 text-center ${
+              className={`px-2 py-2 md:px-4 md:py-3 rounded-xl font-medium text-[11px] md:text-sm transition flex items-center justify-center md:justify-start gap-1.5 md:gap-3 text-center ${
                 activeTab === 'historico' 
                   ? 'bg-teal-600 text-white shadow-lg shadow-teal-950' 
                   : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
@@ -533,12 +534,11 @@ export default function Home() {
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl">
               <h2 className="text-xl font-bold text-emerald-400 mb-4">Inventário Atual</h2>
               
-              {/* VISTA DE TELEMÓVEL (<768px): Vermelho APENAS se esgotado (quantidade === 0) */}
+              {/* VISTA DE TELEMÓVEL (<768px) */}
               <div className="block md:hidden space-y-2.5">
                 {inventario.map(prod => {
                   const isExpanded = expandedItems[prod.id];
-                  const isEsgotado = prod.quantidade === 0; // Vermelho APENAS se esgotado
-                  const isAcabando = prod.quantidade === 1;
+                  const isEsgotado = prod.quantidade === 0;
 
                   return (
                     <div 
@@ -552,7 +552,7 @@ export default function Home() {
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <span className="font-semibold text-sm truncate">{prod.item}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded font-bold shrink-0 ${isEsgotado ? 'bg-red-900 text-white' : isAcabando ? 'bg-amber-900 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                          <span className={`text-xs px-2 py-0.5 rounded font-bold shrink-0 ${isEsgotado ? 'bg-red-900 text-white' : 'bg-slate-800 text-slate-300'}`}>
                             x{prod.quantidade}
                           </span>
                         </div>
@@ -605,7 +605,7 @@ export default function Home() {
                 )}
               </div>
 
-              {/* VISTA DE PC (≥768px): Vermelho APENAS se esgotado (quantidade === 0) */}
+              {/* VISTA DE PC (≥768px) */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
@@ -669,7 +669,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* GUIA 2: LISTA DE COMPRAS COM OS TRÊS PREÇOS E BOTÃO DE FOTO IA */}
+        {/* GUIA 2: LISTA DE COMPRAS EM APENAS UMA LINHA POR ITEM */}
         {activeTab === 'compras' && (
           <div className="space-y-6">
             <input 
@@ -681,55 +681,52 @@ export default function Home() {
               className="hidden" 
             />
 
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-              <h2 className="text-xl font-bold text-amber-400 mb-6">🛒 Lista de Compras (Itens Esgotados)</h2>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl">
+              <h2 className="text-xl font-bold text-amber-400 mb-4">🛒 Lista de Compras (Itens Esgotados)</h2>
               
-              <div className="space-y-4">
+              <div className="space-y-2.5">
                 {listaCompras.map(c => {
                   const { menor, media } = calcularEstatisticasPreco(c.item);
                   const precoAtualVal = precosAtuais[c.id] || '';
 
                   return (
-                    <div key={c.id} className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3 shadow">
-                      <div className="flex justify-between items-center">
-                        <span className="font-semibold text-slate-100 text-base">❌ {c.item}</span>
-                        <span className="text-xs text-amber-500 bg-amber-950/40 border border-amber-900 px-3 py-1 rounded-full font-medium">Pendente</span>
+                    <div key={c.id} className="bg-slate-950 border border-slate-800 p-3 rounded-xl flex flex-col md:flex-row items-center justify-between gap-3 shadow">
+                      
+                      {/* Nome do Item */}
+                      <div className="flex items-center justify-between w-md md:w-auto min-w-0 flex-1">
+                        <span className="font-semibold text-sm text-slate-100 truncate">❌ {c.item}</span>
+                        <span className="text-[10px] text-amber-500 bg-amber-950/40 border border-amber-900 px-2 py-0.5 rounded-full font-medium ml-2">Pendente</span>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2 bg-slate-900/80 p-3 rounded-lg border border-slate-800 text-center text-xs">
-                        <div>
-                          <p className="text-slate-400 mb-0.5">Menor Preço</p>
-                          <p className="font-bold text-emerald-400 text-sm">
-                            {menor > 0 ? `R$ ${menor.toFixed(2)}` : 'N/D'}
-                          </p>
+                      {/* Três Preços e Input Integrados numa Linha */}
+                      <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                        
+                        {/* Menor Preço */}
+                        <div className="bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 text-center shrink-0">
+                          <span className="block text-[10px] text-slate-400">Menor</span>
+                          <span className="font-bold text-emerald-400 text-xs">{menor > 0 ? `R$ ${menor.toFixed(2)}` : 'N/D'}</span>
                         </div>
-                        <div>
-                          <p className="text-slate-400 mb-0.5">Preço Médio</p>
-                          <p className="font-bold text-blue-400 text-sm">
-                            {media > 0 ? `R$ ${media.toFixed(2)}` : 'N/D'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-slate-400 mb-0.5">Preço Atual</p>
-                          <p className="font-bold text-amber-400 text-sm">
-                            {precoAtualVal ? `R$ ${Number(precoAtualVal).toFixed(2)}` : 'Preencher'}
-                          </p>
-                        </div>
-                      </div>
 
-                      <div className="flex items-center gap-2 pt-1">
-                        <div className="relative flex-1">
-                          <span className="absolute left-3 top-2.5 text-xs text-slate-400">R$</span>
+                        {/* Preço Médio */}
+                        <div className="bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 text-center shrink-0">
+                          <span className="block text-[10px] text-slate-400">Médio</span>
+                          <span className="font-bold text-blue-400 text-xs">{media > 0 ? `R$ ${media.toFixed(2)}` : 'N/D'}</span>
+                        </div>
+
+                        {/* Input de Preço Atual */}
+                        <div className="relative w-28 shrink-0">
+                          <span className="absolute left-2.5 top-1.5 text-[10px] text-slate-400">R$</span>
                           <input 
                             type="number" 
                             step="0.01" 
                             value={precoAtualVal} 
                             onChange={(e) => setPrecosAtuais({ ...precosAtuais, [c.id]: e.target.value })}
-                            placeholder="Preço atual na prateleira" 
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-3 py-2 text-sm focus:border-amber-500 outline-none text-slate-200"
+                            placeholder="Atual" 
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-7 pr-2 py-1 text-xs focus:border-amber-500 outline-none text-slate-200"
                           />
                         </div>
 
+                        {/* Botão de Ler Etiqueta com IA */}
                         <button
                           type="button"
                           onClick={() => {
@@ -737,12 +734,14 @@ export default function Home() {
                             comprasFileInputRef.current?.click();
                           }}
                           disabled={loadingIA}
-                          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow transition disabled:opacity-50 shrink-0"
+                          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 shadow transition disabled:opacity-50 shrink-0"
                           title="Ler etiqueta de preço com IA"
                         >
-                          {loadingIA && comprasFileId === c.id ? '⏳' : '📸 Ler Etiqueta'}
+                          {loadingIA && comprasFileId === c.id ? '⏳' : '📸 Ler'}
                         </button>
+
                       </div>
+
                     </div>
                   );
                 })}
