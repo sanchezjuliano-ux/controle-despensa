@@ -17,6 +17,9 @@ export default function Home() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
   const [expandedItems, setExpandedItems] = useState<{ [key: string]: boolean }>({});
+  
+  // Estado para guardar os preços atuais digitados ou lidos por IA na lista de compras { [idCompra]: string }
+  const [precosAtuais, setPrecosAtuais] = useState<{ [key: string]: string }>({});
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [item, setItem] = useState('');
@@ -29,6 +32,9 @@ export default function Home() {
   const [pagamento, setPagamento] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Referência específica para leitura de etiquetas na lista de compras (guarda o ID do item de compra ativo)
+  const [comprasFileId, setComprasFileId] = useState<string | null>(null);
+  const comprasFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     carregarDados();
@@ -41,8 +47,30 @@ export default function Home() {
     const { data: comprasData } = await supabase.from('lista_compras').select('*').order('id', { ascending: false });
     if (comprasData) setListaCompras(comprasData);
 
-    const { data: historicoData } = await supabase.from('historico_movimentacoes').select('*').order('created_at', { ascending: false }).limit(50);
+    const { data: historicoData } = await supabase.from('historico_movimentacoes').select('*').order('created_at', { ascending: false }).limit(200);
     if (historicoData) setHistorico(historicoData);
+  }
+
+  // Função auxiliar para calcular o Menor Preço e a Média de um item com base no histórico
+  function calcularEstatisticasPreco(nomeItem: string) {
+    // Filtra o histórico de entradas para este item (case-insensitive parcial)
+    const entradasItem = historico.filter(h => 
+      h.tipo_movimento === 'entrada' && 
+      h.item && 
+      h.item.toLowerCase().includes(nomeItem.toLowerCase()) && 
+      h.preco_unitario > 0
+    );
+
+    if (entradasItem.length === 0) {
+      return { menor: 0, media: 0 };
+    }
+
+    const precos = entradasItem.map(h => Number(h.preco_unitario));
+    const menor = Math.min(...precos);
+    const soma = precos.reduce((acc, curr) => acc + curr, 0);
+    const media = soma / precos.length;
+
+    return { menor, media };
   }
 
   async function enviarAlertaTelegram(mensagem: string) {
@@ -139,6 +167,38 @@ export default function Home() {
     } finally {
       setLoadingIA(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  // Leitor de etiqueta específico para a Lista de Compras (Preenche o preço atual do item)
+  async function handleAnalisarEtiquetaCompras(e: React.ChangeEvent<HTMLInputElement>, compraId: string) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoadingIA(true);
+    try {
+      const blobComprimido = await comprimirImagem(file);
+      const formData = new FormData();
+      formData.append('image', blobComprimido, 'etiqueta.jpg');
+
+      const res = await fetch('/api/analisar-etiqueta', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const json = await res.json();
+      if (json.success && json.data && json.data.preco) {
+        setPrecosAtuais(prev => ({ ...prev, [compraId]: json.data.preco.toString() }));
+        alert(`✨ Preço atual detetado: R$ ${json.data.preco}`);
+      } else {
+        alert('⚠️ Não foi possível extrair o preço da etiqueta.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao processar imagem de preço.');
+    } finally {
+      setLoadingIA(false);
+      if (comprasFileInputRef.current) comprasFileInputRef.current.value = '';
     }
   }
 
@@ -247,7 +307,7 @@ export default function Home() {
 
     if (novaQtd === 0) {
       await supabase.from('lista_compras').insert([{ item: itemName }]);
-      await enviarAlertaTelegram(`🚨 ALERTA DESPENSA: O item *${itemName}* ACABOU e foi movido para a lista de compras!`);
+      await enviarAlertaTelegram(`🚨 ALERTA DESPENSA: O item *${itemName}* ACABOU e foi movido para la lista de compras!`);
     } else if (novaQtd === 1) {
       await enviarAlertaTelegram(`⚠️ ALERTA DESPENSA: O item *${itemName}* está a ACABAR (Resta apenas 1 unidade).`);
     }
@@ -479,7 +539,6 @@ export default function Home() {
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl">
               <h2 className="text-xl font-bold text-emerald-400 mb-4">Inventário Atual</h2>
               
-              {/* VISTA DE TELEMÓVEL (<768px) */}
               <div className="block md:hidden space-y-2.5">
                 {inventario.map(prod => {
                   const isExpanded = expandedItems[prod.id];
@@ -550,7 +609,6 @@ export default function Home() {
                 )}
               </div>
 
-              {/* VISTA DE PC (≥768px) */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
@@ -614,20 +672,91 @@ export default function Home() {
           </div>
         )}
 
+        {/* GUIA 2: LISTA DE COMPRAS COM OS TRÊS PREÇOS E BOTÃO DE FOTO IA */}
         {activeTab === 'compras' && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-            <h2 className="text-xl font-bold text-amber-400 mb-6">🛒 Lista de Compras (Itens Esgotados)</h2>
-            <ul className="space-y-3">
-              {listaCompras.map(c => (
-                <li key={c.id} className="bg-slate-950 border border-slate-800 p-4 rounded-xl flex justify-between items-center text-sm">
-                  <span className="font-medium text-slate-200">❌ {c.item}</span>
-                  <span className="text-xs text-amber-500 bg-amber-950/40 border border-amber-900 px-3 py-1 rounded-full">Pendente</span>
-                </li>
-              ))}
-              {listaCompras.length === 0 && (
-                <p className="text-slate-500 text-sm text-center py-10">Tudo em ordem! Nenhum item em falta na despensa.</p>
-              )}
-            </ul>
+          <div className="space-y-6">
+            <input 
+              type="file" 
+              accept="image/*" 
+              capture="environment" 
+              ref={comprasFileInputRef} 
+              onChange={(e) => comprasFileId && handleAnalisarEtiquetaCompras(e, comprasFileId)} 
+              className="hidden" 
+            />
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+              <h2 className="text-xl font-bold text-amber-400 mb-6">🛒 Lista de Compras (Itens Esgotados)</h2>
+              
+              <div className="space-y-4">
+                {listaCompras.map(c => {
+                  const { menor, media } = calcularEstatisticasPreco(c.item);
+                  const precoAtualVal = precosAtuais[c.id] || '';
+
+                  return (
+                    <div key={c.id} className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3 shadow">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-slate-100 text-base">❌ {c.item}</span>
+                        <span className="text-xs text-amber-500 bg-amber-950/40 border border-amber-900 px-3 py-1 rounded-full font-medium">Pendente</span>
+                      </div>
+
+                      {/* Exibição dos Três Preços */}
+                      <div className="grid grid-cols-3 gap-2 bg-slate-900/80 p-3 rounded-lg border border-slate-800 text-center text-xs">
+                        <div>
+                          <p className="text-slate-400 mb-0.5">Menor Preço</p>
+                          <p className="font-bold text-emerald-400 text-sm">
+                            {menor > 0 ? `R$ ${menor.toFixed(2)}` : 'N/D'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400 mb-0.5">Preço Médio</p>
+                          <p className="font-bold text-blue-400 text-sm">
+                            {media > 0 ? `R$ ${media.toFixed(2)}` : 'N/D'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400 mb-0.5">Preço Atual</p>
+                          <p className="font-bold text-amber-400 text-sm">
+                            {precoAtualVal ? `R$ ${Number(precoAtualVal).toFixed(2)}` : 'Preencher'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Input de Preço Atual + Botão de Leitura de Etiqueta com IA */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <div className="relative flex-1">
+                          <span className="absolute left-3 top-2.5 text-xs text-slate-400">R$</span>
+                          <input 
+                            type="number" 
+                            step="0.01" 
+                            value={precoAtualVal} 
+                            onChange={(e) => setPrecosAtuais({ ...precosAtuais, [c.id]: e.target.value })}
+                            placeholder="Preço atual na prateleira" 
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-3 py-2 text-sm focus:border-amber-500 outline-none text-slate-200"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setComprasFileId(c.id);
+                            comprasFileInputRef.current?.click();
+                          }}
+                          disabled={loadingIA}
+                          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow transition disabled:opacity-50 shrink-0"
+                          title="Ler etiqueta de preço com IA"
+                        >
+                          {loadingIA && comprasFileId === c.id ? '⏳' : '📸 Ler Etiqueta'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {listaCompras.length === 0 && (
+                  <p className="text-slate-500 text-sm text-center py-10">Tudo em ordem! Nenhum item em falta na despensa.</p>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
