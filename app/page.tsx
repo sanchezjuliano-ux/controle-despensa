@@ -780,7 +780,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* GUIA 2: LISTA DE COMPRAS OTIMIZADA COM PREÇOS INTEIROS E BOTÃO DE LER COMPACTO */}
+        {/* GUIA 2: LISTA DE COMPRAS COM VALORES INTEIROS SEM 'R$' */}
         {activeTab === 'compras' && (
           <div className="space-y-6">
             <input 
@@ -841,22 +841,22 @@ export default function Home() {
                         <span className="text-[10px] text-amber-500 bg-amber-950/40 border border-amber-900 px-2.5 py-0.5 rounded-full font-medium shrink-0">Pendente</span>
                       </div>
 
-                      {/* Grelha ajustada: Preços ganham mais espaço para mostrar o valor inteiro e botão Ler fica compacto */}
-                      <div className="grid grid-cols-[1fr_1fr_85px_55px_42px] gap-1.5 items-center">
+                      {/* Grelha limpa: Sem 'R$' nos blocos de Menor e Médio, mostrando o valor numérico inteiro sem cortes */}
+                      <div className="grid grid-cols-[1fr_1fr_80px_55px_42px] gap-1.5 items-center">
                         
-                        {/* Menor Preço (Espaçoso para mostrar valor completo) */}
+                        {/* Menor Preço (Apenas número inteiro) */}
                         <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center min-w-0">
                           <span className="block text-[9px] text-slate-400 uppercase tracking-wider">Menor</span>
-                          <span className="font-bold text-emerald-400 text-[11px] truncate block">
-                            {menor > 0 ? `R$ ${menor.toFixed(2)}` : 'N/D'}
+                          <span className="font-bold text-emerald-400 text-xs truncate block">
+                            {menor > 0 ? menor.toFixed(2) : '0.00'}
                           </span>
                         </div>
 
-                        {/* Preço Médio (Espaçoso para mostrar valor completo) */}
+                        {/* Preço Médio (Apenas número inteiro) */}
                         <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center min-w-0">
                           <span className="block text-[9px] text-slate-400 uppercase tracking-wider">Médio</span>
-                          <span className="font-bold text-blue-400 text-[11px] truncate block">
-                            {media > 0 ? `R$ ${media.toFixed(2)}` : 'N/D'}
+                          <span className="font-bold text-blue-400 text-xs truncate block">
+                            {media > 0 ? media.toFixed(2) : '0.00'}
                           </span>
                         </div>
 
