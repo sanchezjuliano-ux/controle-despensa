@@ -261,45 +261,45 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row font-sans">
-      <aside className="w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 p-4 md:p-5 flex flex-col md:justify-between">
+      <aside className="w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 p-3 md:p-5 flex flex-col md:justify-between">
         <div className="flex flex-col md:flex-row md:items-center justify-between">
-          <div className="flex items-center gap-2 mb-3 md:mb-8">
+          <div className="flex items-center gap-2 mb-2.5 md:mb-8">
             <span className="text-xl md:text-2xl">📦</span>
-            <h1 className="text-base md:text-lg font-bold text-slate-100">Controle Despensa</h1>
+            <h1 className="text-sm md:text-lg font-bold text-slate-100 tracking-tight">Controle Despensa</h1>
           </div>
 
-          <nav className="flex md:flex-col gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+          <nav className="grid grid-cols-3 gap-1.5 md:flex md:flex-col md:gap-2 w-full">
             <button
               onClick={() => setActiveTab('despensa')}
-              className={`whitespace-nowrap px-3.5 py-2 md:px-4 md:py-3 rounded-xl font-medium text-xs md:text-sm transition flex items-center gap-2 md:gap-3 shrink-0 ${
+              className={`px-2 py-2 md:px-4 md:py-3 rounded-xl font-medium text-[11px] sm:text-xs md:text-sm transition flex items-center justify-center md:justify-start gap-1 md:gap-3 text-center ${
                 activeTab === 'despensa' 
                   ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950' 
                   : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
               }`}
             >
-              <span>📦</span> <span>Despensa / Stock</span>
+              <span>📦</span> <span className="truncate">Despensa</span>
             </button>
 
             <button
               onClick={() => setActiveTab('compras')}
-              className={`whitespace-nowrap px-3.5 py-2 md:px-4 md:py-3 rounded-xl font-medium text-xs md:text-sm transition flex items-center gap-2 md:gap-3 shrink-0 ${
+              className={`px-2 py-2 md:px-4 md:py-3 rounded-xl font-medium text-[11px] sm:text-xs md:text-sm transition flex items-center justify-center md:justify-start gap-1 md:gap-3 text-center ${
                 activeTab === 'compras' 
                   ? 'bg-amber-600 text-white shadow-lg shadow-amber-950' 
                   : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
               }`}
             >
-              <span>🛒</span> <span>Lista de Compras</span>
+              <span>🛒</span> <span className="truncate">Compras</span>
             </button>
 
             <button
               onClick={() => setActiveTab('historico')}
-              className={`whitespace-nowrap px-3.5 py-2 md:px-4 md:py-3 rounded-xl font-medium text-xs md:text-sm transition flex items-center gap-2 md:gap-3 shrink-0 ${
+              className={`px-2 py-2 md:px-4 md:py-3 rounded-xl font-medium text-[11px] sm:text-xs md:text-sm transition flex items-center justify-center md:justify-start gap-1 md:gap-3 text-center ${
                 activeTab === 'historico' 
                   ? 'bg-teal-600 text-white shadow-lg shadow-teal-950' 
                   : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
               }`}
             >
-              <span>📊</span> <span>Histórico</span>
+              <span>📊</span> <span className="truncate">Histórico</span>
             </button>
           </nav>
         </div>
