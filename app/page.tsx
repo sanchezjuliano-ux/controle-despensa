@@ -104,6 +104,75 @@ export default function Home() {
     }
   }
 
+  // Função para finalizar a compra dos itens que possuem preço preenchido
+  async function finalizarCompra() {
+    const itensParaFinalizar = listaCompras.filter(c => {
+      const p = precosAtuais[c.id];
+      return p !== undefined && p !== '' && !isNaN(parseFloat(p));
+    });
+
+    if (itensParaFinalizar.length === 0) {
+      return alert('⚠️ Nenhum item da lista possui preço atual preenchido para finalizar.');
+    }
+
+    if (!confirm(`Tens a certeza que queres finalizar a compra de ${itensParaFinalizar.length} item(ns) com preço preenchido?`)) return;
+
+    setLoadingIA(true);
+    try {
+      for (const c of itensParaFinalizar) {
+        const precoUnit = parseFloat(precosAtuais[c.id]);
+        const qtdComprar = intToNumber(quantidadesCompra[c.id]);
+        const itemName = c.item;
+
+        // 1. Verificar se o item já existe na despensa para somar ou inserir
+        const { data: existente } = await supabase.from('despensa').select('*').ilike('item', `%${itemName}%`);
+
+        if (existente && existente.length > 0) {
+          const atual = existente[0];
+          await supabase.from('despensa').update({
+            quantidade: atual.quantidade + qtdComprar,
+            preco_unitario: precoUnit
+          }).eq('id', atual.id);
+        } else {
+          await supabase.from('despensa').insert([{
+            item: itemName,
+            quantidade: qtdComprar,
+            categoria: 'Mercearia',
+            local: 'Armário',
+            preco_unitario: precoUnit
+          }]);
+        }
+
+        // 2. Registar no histórico de movimentações (entrada)
+        await supabase.from('historico_movimentacoes').insert([{
+          item: itemName,
+          tipo_movimento: 'entrada',
+          quantidade: qtdComprar,
+          preco_unitario: precoUnit,
+          responsavel: 'Painel Web (Compra)',
+          loja: 'Supermercado',
+          metodo_pagamento: 'Não informado'
+        }]);
+
+        // 3. Remover da lista de compras
+        await supabase.from('lista_compras').delete().eq('id', c.id);
+      }
+
+      // Limpar estados locais dos itens finalizados
+      const novosPrecos = { ...precosAtuais };
+      itensParaFinalizar.forEach(c => delete novosPrecos[c.id]);
+      setPrecosAtuais(novosPrecos);
+
+      alert('🎉 Compra finalizada com sucesso! Os itens atualizados voltaram para a despensa.');
+      carregarDados();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao finalizar compra.');
+    } finally {
+      setLoadingIA(false);
+    }
+  }
+
   const comprimirImagem = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -687,7 +756,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* GUIA 2: LISTA DE COMPRAS */}
+        {/* GUIA 2: LISTA DE COMPRAS COM CALCULADORA E BOTÃO DE FINALIZAR COMPRA */}
         {activeTab === 'compras' && (
           <div className="space-y-6">
             <input 
@@ -699,18 +768,26 @@ export default function Home() {
               className="hidden" 
             />
 
-            <div className="bg-gradient-to-r from-amber-950/80 to-slate-900 border border-amber-800/80 rounded-2xl p-4 md:p-6 shadow-xl flex justify-between items-center">
+            {/* PAINEL CALCULADORA DO CARRINHO + BOTÃO DE FINALIZAR */}
+            <div className="bg-gradient-to-r from-amber-950/80 to-slate-900 border border-amber-800/80 rounded-2xl p-4 md:p-6 shadow-xl flex flex-col sm:flex-row justify-between items-center gap-4">
               <div>
                 <p className="text-xs text-amber-400 font-semibold uppercase tracking-wider">Calculadora do Carrinho</p>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-100 mt-0.5">
+                <h3 className="text-2xl md:text-3xl font-bold text-slate-100 mt-0.5">
                   R$ {totalCalculadoraCompras.toFixed(2)}
                 </h3>
-              </div>
-              <div className="text-right">
-                <span className="text-xs bg-amber-900/50 text-amber-300 border border-amber-700 px-3 py-1 rounded-full font-medium">
+                <p className="text-xs text-slate-400 mt-1">
                   {listaCompras.length} {listaCompras.length === 1 ? 'item pendente' : 'itens pendentes'}
-                </span>
+                </p>
               </div>
+
+              <button
+                type="button"
+                onClick={finalizarCompra}
+                disabled={loadingIA || totalCalculadoraCompras === 0}
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-950 transition flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <span>{loadingIA ? '⏳ A processar...' : '✅ Finalizar Compra'}</span>
+              </button>
             </div>
 
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl">
