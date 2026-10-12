@@ -12,11 +12,11 @@ const bot = new Telegraf(token);
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-// CÉREBRO PRINCIPAL: Atualizado para o modelo ativo na sua conta
+// CÉREBRO PRINCIPAL: Modelo ativo na conta
 const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-live-preview" });
 
 // ==========================================
-// MOTOR TÁTICO CENTRAL (Processa Texto e Áudio)
+// MOTOR TÁTICO CENTRAL (Processa Texto, Áudio e Imagem)
 // ==========================================
 async function processarOrdem(ctx, texto) {
   const responsavel = ctx.from.first_name || 'Família';
@@ -126,11 +126,9 @@ async function processarOrdem(ctx, texto) {
         let novaQuantidade = dbItem.quantidade - qtdBaixa;
         if (novaQuantidade < 0) novaQuantidade = 0; 
 
-        // Atualiza a despensa (limpa validade se zerar)
         const updatePayload = novaQuantidade === 0 ? { quantidade: 0, validade: null } : { quantidade: novaQuantidade };
         await supabase.from('despensa').update(updatePayload).eq('id', dbItem.id);
 
-        // Histórico de saída
         await supabase.from('historico_movimentacoes').insert([{ 
           item: dbItem.item, 
           tipo_movimento: 'saida', 
@@ -150,7 +148,7 @@ async function processarOrdem(ctx, texto) {
       return ctx.replyWithMarkdown(msgResposta);
     }
 
-    // 4. LÓGICA: REGISTAR (ENTRADA COM EXTRAÇÃO DE LOJA E PAGAMENTO)
+    // 4. LÓGICA: REGISTAR (ENTRADA)
     if (intencao.includes('REGISTAR')) {
       const promptRegisto = `Analisa este texto de registo de compras e devolve APENAS um array JSON: [{"item": "Nome", "quantidade": 1, "categoria": "Mercearia", "preco": 10.50, "loja": "Nome do Mercado", "pagamento": "Forma de Pagamento"}]. Se o utilizador não mencionar a loja ou o pagamento, preenche com "Não informado". Texto: "${texto}"`;
       
@@ -195,7 +193,6 @@ async function processarOrdem(ctx, texto) {
           }]);
         }
 
-        // Histórico de Entrada Tática
         const { error: insertHistoricoError } = await supabase.from('historico_movimentacoes').insert([{ 
           item, 
           tipo_movimento: 'entrada', 
@@ -265,14 +262,60 @@ bot.on('voice', async (ctx) => {
     }
 
     const textoTranscrito = transcricaoResult.response.text().trim();
-
     await ctx.reply(`✅ Transcrição: "${textoTranscrito}"\n⚙️ A executar...`);
-
     await processarOrdem(ctx, textoTranscrito);
 
   } catch (error) {
     console.error("Erro no processamento de áudio - TAREFA CANCELADA:", error);
     ctx.reply("❌ Tarefa cancelada devido a um erro crítico no áudio.");
+  }
+});
+
+// ==========================================
+// GATILHO 3: MENSAGENS DE FOTO (NOVO PARA O MERCADO!)
+// ==========================================
+bot.on('photo', async (ctx) => {
+  try {
+    await ctx.reply("📸 Foto recebida. A analisar etiqueta/produto...");
+
+    // Pega na foto de maior resolução enviada
+    const fotos = ctx.message.photo;
+    const maiorFoto = fotos[fotos.length - 1];
+    
+    const fileLink = await ctx.telegram.getFileLink(maiorFoto.file_id);
+    const response = await fetch(fileLink.href);
+    const buffer = await response.arrayBuffer();
+    const base64Image = Buffer.from(buffer).toString("base64");
+
+    const imagePart = {
+      inlineData: {
+        data: base64Image,
+        mimeType: "image/jpeg",
+      },
+    };
+
+    const promptFoto = "Analisa esta imagem de uma etiqueta de preço, talão ou produto de supermercado. Extrai o nome do produto, o preço, a quantidade (se visível) e a categoria. Devolve num formato de texto claro que sirva para registar a compra.";
+
+    let fotoResult;
+    try {
+      fotoResult = await model.generateContent([promptFoto, imagePart]);
+      if (!fotoResult || !fotoResult.response || !fotoResult.response.text()) {
+        throw new Error("Análise de imagem vazia.");
+      }
+    } catch (aiError) {
+      console.error("ERRO IA (Foto) - TAREFA CANCELADA:", aiError.message);
+      return ctx.reply("❌ Tarefa cancelada: não consegui ler a imagem. Tenta tirar outra foto.");
+    }
+
+    const textoExtraido = fotoResult.response.text().trim();
+    await ctx.reply(`✅ Produto Detetado:\n${textoExtraido}\n⚙️ A registar na despensa...`);
+
+    // Passa o texto extraído da foto diretamente para o motor de registo de compras
+    await processarOrdem(ctx, `Comprei: ${textoExtraido}`);
+
+  } catch (error) {
+    console.error("Erro no processamento de foto - TAREFA CANCELADA:", error);
+    ctx.reply("❌ Tarefa cancelada devido a um erro ao processar a fotografia.");
   }
 });
 
