@@ -125,9 +125,10 @@ export default function GestaoDespensa() {
     buscarItens(); setShowFormMobile(false); 
   };
 
+  // Ao dar baixa (zerar quantidade), limpa a validade na BD
   const darBaixaDespensa = async (item: any) => {
     await supabase.from('lista_compras').insert([{ item: item.item.trim(), quantidade: 1, categoria: item.categoria, local: item.local, preco_unitario: item.preco_unitario }]);
-    await supabase.from('despensa').delete().eq('id', item.id);
+    await supabase.from('despensa').update({ quantidade: 0, validade: null }).eq('id', item.id);
     buscarItens(); buscarCompras();
   };
 
@@ -141,7 +142,7 @@ export default function GestaoDespensa() {
 
     if (qtdFinal <= 0) {
       await supabase.from('lista_compras').insert([{ item: nomeLimpo, quantidade: 1, categoria: editForm.categoria, local: editForm.local, preco_unitario: precoFinal }]);
-      await supabase.from('despensa').delete().eq('id', editingId);
+      await supabase.from('despensa').update({ quantidade: 0, validade: null }).eq('id', editingId);
     } else {
       await supabase.from('despensa').update({ 
         item: nomeLimpo, quantidade: qtdFinal, categoria: editForm.categoria, local: editForm.local, preco_unitario: precoFinal, validade: editForm.validade || null 
@@ -150,8 +151,8 @@ export default function GestaoDespensa() {
     cancelarEdicao(); buscarItens(); buscarCompras();
   };
 
-  const avaliarAlertaValidade = (dataValidade: string) => {
-    if (!dataValidade) return null;
+  const avaliarAlertaValidade = (dataValidade: string, quantidadeItem: number) => {
+    if (!dataValidade || quantidadeItem <= 0) return null; // Oculta se zerado ou vazio
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     const vencimento = new Date(dataValidade);
@@ -352,7 +353,7 @@ export default function GestaoDespensa() {
                       </thead>
                       <tbody>
                         {loading ? ( <tr><td colSpan={6} className="text-center py-8">A carregar...</td></tr> ) : itens.map((item) => {
-                          const alerta = avaliarAlertaValidade(item.validade);
+                          const alerta = avaliarAlertaValidade(item.validade, item.quantidade);
                           
                           return (
                           <tr key={item.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
@@ -400,7 +401,7 @@ export default function GestaoDespensa() {
 
                 <div className="md:hidden space-y-4">
                   {loading ? ( <div className="text-center py-8 text-gray-500">A carregar...</div> ) : itens.map((item) => {
-                    const alerta = avaliarAlertaValidade(item.validade);
+                    const alerta = avaliarAlertaValidade(item.validade, item.quantidade);
                     
                     return (
                     <div key={item.id} className="bg-[#111827] border border-gray-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
