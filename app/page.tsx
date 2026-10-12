@@ -16,6 +16,9 @@ export default function Home() {
   const [loadingIA, setLoadingIA] = useState(false);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
+  // Estado para controlar quais itens estão expandidos no telemóvel (guarda os IDs)
+  const [expandedItems, setExpandedItems] = useState<{ [key: string]: boolean }>({});
+
   // Estados do Formulário e Edição
   const [editingId, setEditingId] = useState<string | null>(null);
   const [item, setItem] = useState('');
@@ -44,7 +47,6 @@ export default function Home() {
     if (historicoData) setHistorico(historicoData);
   }
 
-  // Função para comprimir a imagem no browser antes de enviar
   const comprimirImagem = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -134,7 +136,6 @@ export default function Home() {
     const precoUnit = precoNum / qtdNum;
 
     if (editingId) {
-      // Atualizar item existente
       await supabase.from('despensa').update({
         item,
         quantidade: qtdNum,
@@ -146,7 +147,6 @@ export default function Home() {
 
       alert('✅ Item atualizado com sucesso!');
     } else {
-      // Inserir ou somar novo item
       const { data: existente } = await supabase.from('despensa').select('*').ilike('item', `%${item}%`);
 
       if (existente && existente.length > 0) {
@@ -181,7 +181,6 @@ export default function Home() {
       alert('✅ Guardado no stock com sucesso!');
     }
 
-    // Limpar formulário e fechar
     setEditingId(null);
     setItem('');
     setQuantidade(1);
@@ -237,6 +236,10 @@ export default function Home() {
 
     carregarDados();
   }
+
+  const toggleExpand = (id: string) => {
+    setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row font-sans">
@@ -296,8 +299,8 @@ export default function Home() {
         {activeTab === 'despensa' && (
           <div className="space-y-6">
             
-            {/* BOTÃO PARA MOSTRAR/ESCONDER LANÇAMENTO E LEITOR DE IA */}
-            <div className="flex justify-between items-center bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-lg">
+            {/* BOTÕES DE NOVO LANÇAMENTO E LEITOR DE IA */}
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-lg">
               <button
                 onClick={() => {
                   setEditingId(null);
@@ -307,12 +310,12 @@ export default function Home() {
                   setPreco('');
                   setMostrarFormulario(!mostrarFormulario);
                 }}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition flex items-center gap-2 shadow"
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 shadow"
               >
                 <span>{mostrarFormulario ? '✕ Fechar Lançamento' : '➕ Novo Lançamento'}</span>
               </button>
 
-              <div>
+              <div className="w-full sm:w-auto">
                 <input 
                   type="file" 
                   accept="image/*" 
@@ -325,7 +328,7 @@ export default function Home() {
                   type="button" 
                   onClick={() => fileInputRef.current?.click()} 
                   disabled={loadingIA}
-                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 shadow transition disabled:opacity-50"
+                  className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow transition disabled:opacity-50"
                 >
                   {loadingIA ? '⏳ A ler etiqueta...' : '📸 Ler Etiqueta com IA'}
                 </button>
@@ -460,10 +463,79 @@ export default function Home() {
               </div>
             )}
 
-            {/* Inventário Atual com Botões de Ação (Consumir, Editar, Excluir) */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            {/* INVENTÁRIO ATUAL: Responsivo (Cartões limpos no Telemóvel / Tabela completa no PC) */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl">
               <h2 className="text-xl font-bold text-emerald-400 mb-4">Inventário Atual</h2>
-              <div className="overflow-x-auto">
+              
+              {/* VISTA DE TELEMÓVEL (<768px): Nome, Qtd, Consumir, Editar, Excluir + Botão de Expandir Detalhes */}
+              <div className="block md:hidden space-y-3">
+                {inventario.map(prod => {
+                  const isExpanded = expandedItems[prod.id];
+                  return (
+                    <div key={prod.id} className="bg-slate-950 border border-slate-800/80 rounded-xl p-4 shadow">
+                      <div className="flex justify-between items-start gap-2">
+                        <div>
+                          <h3 className="font-semibold text-slate-100 text-base">{prod.item}</h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-300">Qtd: <b>{prod.quantidade}</b></span>
+                            {prod.quantidade === 0 && <span className="text-xs bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Acabou</span>}
+                            {prod.quantidade === 1 && <span className="text-xs bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Acabando</span>}
+                          </div>
+                        </div>
+
+                        {/* Botões de Ação Principais no Telemóvel */}
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
+                            className="bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+                            title="Consumir 1"
+                          >
+                            -1
+                          </button>
+                          <button 
+                            onClick={() => iniciarEdicao(prod)}
+                            className="bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-800 p-2 rounded-lg text-xs font-medium"
+                            title="Editar"
+                          >
+                            ✏️
+                          </button>
+                          <button 
+                            onClick={() => excluirItem(prod.id, prod.item)}
+                            className="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 p-2 rounded-lg text-xs font-medium"
+                            title="Excluir"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Secção Expandida com Detalhes */}
+                      {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-400 space-y-1.5 animate-fadeIn">
+                          <p>📅 Validade: <span className="text-slate-200">{prod.validade || 'Sem data'}</span></p>
+                          <p>💰 Preço Unitário: <span className="text-slate-200">R$ {Number(prod.preco_unitario || 0).toFixed(2)}</span></p>
+                          <p>🏷️ Categoria: <span className="text-slate-200">{prod.categoria || 'Mercearia'}</span></p>
+                          <p>📍 Local: <span className="text-slate-200">{prod.local || 'Armário'}</span></p>
+                        </div>
+                      )}
+
+                      {/* Botão de Expansão */}
+                      <button 
+                        onClick={() => toggleExpand(prod.id)}
+                        className="w-full mt-3 pt-2 border-t border-slate-900 text-center text-xs text-emerald-400 hover:text-emerald-300 font-medium flex items-center justify-center gap-1"
+                      >
+                        {isExpanded ? '▲ Ocultar Detalhes' : '▼ Ver Todos os Detalhes'}
+                      </button>
+                    </div>
+                  );
+                })}
+                {inventario.length === 0 && (
+                  <p className="py-8 text-center text-slate-500 text-sm">Nenhum item registado na despensa.</p>
+                )}
+              </div>
+
+              {/* VISTA DE PC (≥768px): Tabela Tradicional Completa */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-800 text-slate-400 text-xs">
@@ -518,6 +590,7 @@ export default function Home() {
                   </tbody>
                 </table>
               </div>
+
             </div>
           </div>
         )}
