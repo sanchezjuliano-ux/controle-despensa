@@ -12,7 +12,8 @@ const bot = new Telegraf(token);
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+// CORREÇÃO: Utilizando o modelo correto gemini-3.8-flash
+const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
 
 async function processarOrdem(ctx, texto) {
   const responsavel = ctx.from.first_name || 'Família';
@@ -44,7 +45,6 @@ async function processarOrdem(ctx, texto) {
 
     const intencao = intentResult.response.text().trim().toUpperCase();
 
-    // 1. CONSULTAR INVENTÁRIO
     if (intencao.includes('CONSULTAR')) {
       const { data, error } = await supabase.from('despensa').select('*').order('item', { ascending: true });
       if (error || !data || data.length === 0) {
@@ -55,13 +55,12 @@ async function processarOrdem(ctx, texto) {
         const precoUn = item.preco_unitario ? Number(item.preco_unitario).toFixed(2) : '0.00';
         let alerta = "";
         if (item.quantidade === 0) alerta = " 🚨 *[ACABOU]*";
-        else if (item.quantidade === 1) alerta = " ⚠️ *[ACABando]*";
+        else if (item.quantidade === 1) alerta = " ⚠️ *[ACABANDO]*";
         msgResposta += `• *${item.item}* (x${item.quantidade})${alerta} | R$ ${precoUn}\n`;
       });
       return ctx.replyWithMarkdown(msgResposta);
     }
 
-    // 2. COMPARAR / RELATÓRIO CRÍTICO
     if (intencao.includes('COMPARAR')) {
       const { data, error } = await supabase.from('despensa').select('*');
       if (error) return ctx.reply('📊 Erro ao puxar dados para análise.');
@@ -78,14 +77,11 @@ async function processarOrdem(ctx, texto) {
       return ctx.replyWithMarkdown(alertaMsg);
     }
 
-    // 3. ANÁLISE DE TEMPO DE CONSUMO (Linguagem Natural)
     if (intencao.includes('ANALISE_CONSUMO')) {
-      // Pede ao Gemini para extrair o nome do produto que o utilizador quer analisar na frase
       const promptItem = `Extrai apenas o nome do produto ou ingrediente que o utilizador quer saber o tempo de consumo. Devolve só o nome do item. Frase: "${texto}"`;
       const resItem = await model.generateContent(promptItem);
       const nomeItemBusca = resItem.response.text().trim();
 
-      // Puxa o histórico de movimentações do Supabase para fazer o cálculo matemático
       const { data: histData, error: histError } = await supabase
         .from('historico_movimentacoes')
         .select('*')
@@ -122,7 +118,6 @@ async function processarOrdem(ctx, texto) {
       return ctx.replyWithMarkdown(`⏳ *Análise de Consumo para "${nomeItemBusca}":*\n\nCom base no teu histórico, este item dura em média *${mediaDias} dias* na despensa até precisar de reposição.`);
     }
 
-    // 4. CONSUMIR (DAR BAIXA)
     if (intencao.includes('CONSUMIR')) {
       const promptConsumo = `Analisa este texto de consumo de despensa e devolve APENAS um array JSON: [{"item": "Nome", "quantidade": 1}]. Se a quantidade não for explicitada, assume 1. Texto: "${texto}"`;
       let result;
@@ -184,7 +179,6 @@ async function processarOrdem(ctx, texto) {
       return ctx.replyWithMarkdown(msgResposta);
     }
 
-    // 5. REGISTAR (COMPRAS / ENTRADAS)
     if (intencao.includes('REGISTAR')) {
       const promptRegisto = `Analisa este texto de registo de compras e devolve APENAS um array JSON: [{"item": "Nome", "quantidade": 1, "categoria": "Mercearia", "preco": 10.50, "loja": "Nome do Mercado", "pagamento": "Forma de Pagamento"}]. Se o utilizador não mencionar a loja ou o pagamento, preenche com "Não informado". Texto: "${texto}"`;
       let result;
