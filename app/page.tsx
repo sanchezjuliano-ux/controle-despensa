@@ -9,11 +9,13 @@ const supabase = createClient(
 );
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState<'despensa' | 'compras' | 'historico'>('despensa');
   const [inventario, setInventario] = useState<any[]>([]);
   const [listaCompras, setListaCompras] = useState<any[]>([]);
+  const [historico, setHistorico] = useState<any[]>([]);
   const [loadingIA, setLoadingIA] = useState(false);
 
-  // Estados do Formulário
+  // Estados do Formulário de Novo Lançamento
   const [item, setItem] = useState('');
   const [quantidade, setQuantidade] = useState(1);
   const [validade, setValidade] = useState('');
@@ -35,9 +37,12 @@ export default function Home() {
 
     const { data: comprasData } = await supabase.from('lista_compras').select('*').order('id', { ascending: false });
     if (comprasData) setListaCompras(comprasData);
+
+    const { data: historicoData } = await supabase.from('historico_movimentacoes').select('*').order('created_at', { ascending: false }).limit(50);
+    if (historicoData) setHistorico(historicoData);
   }
 
-  // Função para comprimir a imagem no browser (Evita o erro 413 Payload Too Large na Vercel)
+  // Função para comprimir a imagem no browser antes de enviar (Evita o erro 413 Payload Too Large)
   const comprimirImagem = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -49,7 +54,7 @@ export default function Home() {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          const maxDim = 800; // Limita a resolução máxima para manter a imagem leve
+          const maxDim = 800;
 
           if (width > height) {
             if (width > maxDim) {
@@ -74,7 +79,7 @@ export default function Home() {
               else reject(new Error('Falha ao comprimir imagem'));
             },
             'image/jpeg',
-            0.75 // Qualidade de compressão otimizada
+            0.75
           );
         };
         img.onerror = (error) => reject(error);
@@ -89,7 +94,6 @@ export default function Home() {
 
     setLoadingIA(true);
     try {
-      // Comprime a foto tirada pelo telemóvel antes de enviar
       const blobComprimido = await comprimirImagem(file);
       const formData = new FormData();
       formData.append('image', blobComprimido, 'etiqueta.jpg');
@@ -191,210 +195,304 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 p-4 sm:p-6 max-w-4xl mx-auto">
-      <header className="flex justify-between items-center mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-          📦 Controle Despensa
-        </h1>
-        <span className="text-xs bg-emerald-900/60 text-emerald-400 border border-emerald-700 px-3 py-1 rounded-full">
-          Online 24/7
-        </span>
-      </header>
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row font-sans">
+      {/* BARRA LATERAL (Sidebar) */}
+      <aside className="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-5 flex flex-col justify-between">
+        <div>
+          <div className="flex items-center gap-2 mb-8">
+            <span className="text-2xl">📦</span>
+            <h1 className="text-lg font-bold text-slate-100">Controle Despensa</h1>
+          </div>
 
-      {/* Formulário / Novo Lançamento com o teu layout original */}
-      <section className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6 mb-6 shadow-xl">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-emerald-400">Novo Lançamento</h2>
-          
-          <div>
-            <input 
-              type="file" 
-              accept="image/*" 
-              capture="environment" 
-              ref={fileInputRef} 
-              onChange={handleAnalisarEtiqueta} 
-              className="hidden" 
-            />
-            <button 
-              type="button" 
-              onClick={() => fileInputRef.current?.click()} 
-              disabled={loadingIA}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow transition disabled:opacity-50"
+          <nav className="space-y-2">
+            <button
+              onClick={() => setActiveTab('despensa')}
+              className={`w-full text-left px-4 py-3 rounded-xl font-medium text-sm transition flex items-center gap-3 ${
+                activeTab === 'despensa' 
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950' 
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+              }`}
             >
-              {loadingIA ? '⏳ A ler...' : '📸 Ler Etiqueta'}
+              <span>📦</span> Despensa / Stock
             </button>
-          </div>
+
+            <button
+              onClick={() => setActiveTab('compras')}
+              className={`w-full text-left px-4 py-3 rounded-xl font-medium text-sm transition flex items-center gap-3 ${
+                activeTab === 'compras' 
+                  ? 'bg-amber-600 text-white shadow-lg shadow-amber-950' 
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+              }`}
+            >
+              <span>🛒</span> Lista de Compras
+            </button>
+
+            <button
+              onClick={() => setActiveTab('historico')}
+              className={`w-full text-left px-4 py-3 rounded-xl font-medium text-sm transition flex items-center gap-3 ${
+                activeTab === 'historico' 
+                  ? 'bg-teal-600 text-white shadow-lg shadow-teal-950' 
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+              }`}
+            >
+              <span>📊</span> Histórico
+            </button>
+          </nav>
         </div>
 
-        <form onSubmit={handleGuardarStock} className="space-y-4">
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Item</label>
-            <input 
-              type="text" 
-              value={item} 
-              onChange={e => setItem(e.target.value)} 
-              placeholder="Nome do produto" 
-              className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
-              required 
-            />
-          </div>
+        <div className="mt-8 pt-4 border-t border-slate-800 text-xs text-slate-500 text-center">
+          Sistema Ativo 24/7 🚀
+        </div>
+      </aside>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Quantidade</label>
-              <input 
-                type="number" 
-                value={quantidade} 
-                onChange={e => setQuantidade(Number(e.target.value))} 
-                min="1" 
-                className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
-                required 
-              />
+      {/* CONTEÚDO PRINCIPAL */}
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto max-w-5xl">
+        
+        {/* GUIA 1: DESPENSA / NOVO LANÇAMENTO */}
+        {activeTab === 'despensa' && (
+          <div className="space-y-6">
+            {/* Formulário de Novo Lançamento com o Botão de IA */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-emerald-400">Novo Lançamento</h2>
+                
+                <div>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    capture="environment" 
+                    ref={fileInputRef} 
+                    onChange={handleAnalisarEtiqueta} 
+                    className="hidden" 
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => fileInputRef.current?.click()} 
+                    disabled={loadingIA}
+                    className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition disabled:opacity-50"
+                  >
+                    {loadingIA ? '⏳ A ler etiqueta...' : '📸 Ler Etiqueta com IA'}
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handleGuardarStock} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-slate-400 mb-1">Nome do Item</label>
+                  <input 
+                    type="text" 
+                    value={item} 
+                    onChange={e => setItem(e.target.value)} 
+                    placeholder="Ex: Fósforo Pinheiro" 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
+                    required 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Quantidade</label>
+                  <input 
+                    type="number" 
+                    value={quantidade} 
+                    onChange={e => setQuantidade(Number(e.target.value))} 
+                    min="1" 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
+                    required 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Preço Total (R$)</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    value={preco} 
+                    onChange={e => setPreco(e.target.value)} 
+                    placeholder="0.00" 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Validade</label>
+                  <input 
+                    type="date" 
+                    value={validade} 
+                    onChange={e => setValidade(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Categoria</label>
+                  <select 
+                    value={categoria} 
+                    onChange={e => setCategoria(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
+                  >
+                    <option value="Mercearia">Mercearia</option>
+                    <option value="Limpeza">Limpeza</option>
+                    <option value="Higiene">Higiene</option>
+                    <option value="Bebidas">Bebidas</option>
+                    <option value="Outros">Outros</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Local</label>
+                  <select 
+                    value={local} 
+                    onChange={e => setLocal(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
+                  >
+                    <option value="Armário">Armário</option>
+                    <option value="Frigorífico">Frigorífico</option>
+                    <option value="Despensa">Despensa</option>
+                    <option value="Área de Serviço">Área de Serviço</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Loja / Supermercado</label>
+                  <input 
+                    type="text" 
+                    value={loja} 
+                    onChange={e => setLoja(e.target.value)} 
+                    placeholder="Ex: Tenda" 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-slate-400 mb-1">Forma de Pagamento</label>
+                  <input 
+                    type="text" 
+                    value={pagamento} 
+                    onChange={e => setPagamento(e.target.value)} 
+                    placeholder="Ex: Cartão Tenda" 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
+                  />
+                </div>
+
+                <div className="md:col-span-2 mt-2">
+                  <button 
+                    type="submit" 
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3.5 rounded-xl text-sm transition shadow-lg shadow-emerald-950"
+                  >
+                    Guardar no Stock
+                  </button>
+                </div>
+              </form>
             </div>
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Preço Total (R$)</label>
-              <input 
-                type="number" 
-                step="0.01" 
-                value={preco} 
-                onChange={e => setPreco(e.target.value)} 
-                placeholder="0.00" 
-                className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
-              />
+
+            {/* Inventário Atual */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+              <h2 className="text-xl font-bold text-emerald-400 mb-4">Inventário Atual</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 text-xs">
+                      <th className="pb-3">Item</th>
+                      <th className="pb-3 text-center">Qtd</th>
+                      <th className="pb-3">Validade</th>
+                      <th className="pb-3">Preço Un.</th>
+                      <th className="pb-3 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {inventario.map(prod => (
+                      <tr key={prod.id} className="hover:bg-slate-800/30">
+                        <td className="py-3.5 font-medium">
+                          {prod.item}
+                          {prod.quantidade === 0 && <span className="ml-2 text-xs bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Acabou</span>}
+                          {prod.quantidade === 1 && <span className="ml-2 text-xs bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Acabando</span>}
+                        </td>
+                        <td className="py-3.5 text-center font-bold">{prod.quantidade}</td>
+                        <td className="py-3.5 text-xs text-slate-400">{prod.validade || 'Sem data'}</td>
+                        <td className="py-3.5 text-slate-300">R$ {Number(prod.preco_unitario || 0).toFixed(2)}</td>
+                        <td className="py-3.5 text-right">
+                          <button 
+                            onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
+                            className="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 px-3 py-1.5 rounded-xl text-xs font-medium transition"
+                          >
+                            -1 Consumir
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {inventario.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-slate-500 text-sm">Nenhum item registado na despensa.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
+        )}
 
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Validade</label>
-            <input 
-              type="date" 
-              value={validade} 
-              onChange={e => setValidade(e.target.value)} 
-              className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none text-gray-300" 
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Categoria</label>
-              <select 
-                value={categoria} 
-                onChange={e => setCategoria(e.target.value)} 
-                className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none text-gray-300"
-              >
-                <option value="Mercearia">Mercearia</option>
-                <option value="Limpeza">Limpeza</option>
-                <option value="Higiene">Higiene</option>
-                <option value="Bebidas">Bebidas</option>
-                <option value="Outros">Outros</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Local</label>
-              <select 
-                value={local} 
-                onChange={e => setLocal(e.target.value)} 
-                className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none text-gray-300"
-              >
-                <option value="Armário">Armário</option>
-                <option value="Frigorífico">Frigorífico</option>
-                <option value="Despensa">Despensa</option>
-                <option value="Área de Serviço">Área de Serviço</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Loja / Supermercado</label>
-            <input 
-              type="text" 
-              value={loja} 
-              onChange={e => setLoja(e.target.value)} 
-              placeholder="Ex: Tenda" 
-              className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Forma de Pagamento</label>
-            <input 
-              type="text" 
-              value={pagamento} 
-              onChange={e => setPagamento(e.target.value)} 
-              placeholder="Ex: Cartão Tenda" 
-              className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm focus:border-emerald-500 outline-none" 
-            />
-          </div>
-
-          <button 
-            type="submit" 
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 rounded-lg text-sm transition shadow-lg mt-2"
-          >
-            Guardar no Stock
-          </button>
-        </form>
-      </section>
-
-      {/* Inventário Atual com o layout original */}
-      <section className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6 mb-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-emerald-400 mb-4">Inventário Atual</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-gray-800 text-gray-400 text-xs">
-                <th className="pb-3">Item</th>
-                <th className="pb-3 text-center">Qtd</th>
-                <th className="pb-3">Validade</th>
-                <th className="pb-3">Preço Un.</th>
-                <th className="pb-3 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800/50">
-              {inventario.map(prod => (
-                <tr key={prod.id} className="hover:bg-gray-800/30">
-                  <td className="py-3 font-medium">
-                    {prod.item}
-                    {prod.quantidade === 0 && <span className="ml-2 text-xs bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Acabou</span>}
-                    {prod.quantidade === 1 && <span className="ml-2 text-xs bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Acabando</span>}
-                  </td>
-                  <td className="py-3 text-center font-bold">{prod.quantidade}</td>
-                  <td className="py-3 text-xs text-gray-400">{prod.validade || 'Sem data'}</td>
-                  <td className="py-3 text-gray-300">R$ {Number(prod.preco_unitario || 0).toFixed(2)}</td>
-                  <td className="py-3 text-right">
-                    <button 
-                      onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
-                      className="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 px-3 py-1 rounded text-xs font-medium transition"
-                    >
-                      -1 Consumir
-                    </button>
-                  </td>
-                </tr>
+        {/* GUIA 2: LISTA DE COMPRAS */}
+        {activeTab === 'compras' && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <h2 className="text-xl font-bold text-amber-400 mb-6">🛒 Lista de Compras (Itens Esgotados)</h2>
+            <ul className="space-y-3">
+              {listaCompras.map(c => (
+                <li key={c.id} className="bg-slate-950 border border-slate-800 p-4 rounded-xl flex justify-between items-center text-sm">
+                  <span className="font-medium text-slate-200">❌ {c.item}</span>
+                  <span className="text-xs text-amber-500 bg-amber-950/40 border border-amber-900 px-3 py-1 rounded-full">Pendente</span>
+                </li>
               ))}
-              {inventario.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-6 text-center text-gray-500 text-sm">Nenhum item registado.</td>
-                </tr>
+              {listaCompras.length === 0 && (
+                <p className="text-slate-500 text-sm text-center py-10">Tudo em ordem! Nenhum item em falta na despensa.</p>
               )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+            </ul>
+          </div>
+        )}
 
-      {/* Lista de Compras */}
-      <section className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-amber-400 mb-4">🛒 Lista de Compras (Itens Esgotados)</h2>
-        <ul className="space-y-2">
-          {listaCompras.map(c => (
-            <li key={c.id} className="bg-gray-950 border border-gray-800 p-3 rounded-lg flex justify-between items-center text-sm">
-              <span className="font-medium text-gray-200">❌ {c.item}</span>
-              <span className="text-xs text-amber-500 bg-amber-950/40 border border-amber-900 px-2.5 py-1 rounded">Pendente</span>
-            </li>
-          ))}
-          {listaCompras.length === 0 && (
-            <p className="text-gray-500 text-sm text-center py-4">Tudo em ordem! Nenhum item em falta.</p>
-          )}
-        </ul>
-      </section>
+        {/* GUIA 3: HISTÓRICO */}
+        {activeTab === 'historico' && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <h2 className="text-xl font-bold text-teal-400 mb-6">📊 Histórico de Movimentações</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 text-xs">
+                    <th className="pb-3">Data</th>
+                    <th className="pb-3">Item</th>
+                    <th className="pb-3">Tipo</th>
+                    <th className="pb-3 text-center">Qtd</th>
+                    <th className="pb-3">Loja</th>
+                    <th className="pb-3">Responsável</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/50">
+                  {historico.map(h => (
+                    <tr key={h.id} className="hover:bg-slate-800/30">
+                      <td className="py-3 text-xs text-slate-400">{new Date(h.created_at).toLocaleString('pt-BR')}</td>
+                      <td className="py-3 font-medium text-slate-200">{h.item}</td>
+                      <td className="py-3">
+                        <span className={`text-xs px-2.5 py-1 rounded-full border ${h.tipo_movimento === 'entrada' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-red-950 text-red-400 border-red-800'}`}>
+                          {h.tipo_movimento}
+                        </span>
+                      </td>
+                      <td className="py-3 text-center font-bold">{h.quantidade}</td>
+                      <td className="py-3 text-xs text-slate-400">{h.loja || '-'}</td>
+                      <td className="py-3 text-xs text-slate-400">{h.responsavel || '-'}</td>
+                    </tr>
+                  ))}
+                  {historico.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-500 text-sm">Nenhum registo no histórico.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+      </main>
     </div>
   );
 }
