@@ -12,8 +12,7 @@ const bot = new Telegraf(token);
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-// CÉREBRO PRINCIPAL: Gemini 3.8 Flash
-const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 async function processarOrdem(ctx, texto) {
   const responsavel = ctx.from.first_name || 'Família';
@@ -21,13 +20,14 @@ async function processarOrdem(ctx, texto) {
   try {
     const intentPrompt = `
       Analisa a mensagem do utilizador num contexto de gestão de despensa doméstica.
-      Classifica a intenção em uma destas quatro categorias exatas:
+      Classifica a intenção em uma destas cinco categorias exatas:
       1. "REGISTAR" (se o utilizador comprou, adicionou itens ou repôs stock)
       2. "CONSUMIR" (se o utilizador gastou, consumiu, usou, comeu ou quer dar baixa num item)
-      3. "CONSULTAR" (se o utilizador está a perguntar o que tem na despensa ou stock)
-      4. "COMPARAR_SUGERIR" (se o utilizador quer relatórios ou alertas de stock)
+      3. "CONSULTAR" (se o utilizador está a perguntar o que tem na despensa ou stock atual)
+      4. "COMPARAR_SUGERIR" (se o utilizador quer relatórios gerais de stock crítico ou compras pendentes)
+      5. "ANALISE_CONSUMO" (se o utilizador está a perguntar quanto tempo dura um produto específico, ex: "quanto tempo dura o óleo?", "em média o azeite dura quanto?")
 
-      Devolve APENAS a palavra da categoria ("REGISTAR", "CONSUMIR", "CONSULTAR" ou "COMPARAR_SUGERIR") e mais nada.
+      Devolve APENAS a palavra da categoria ("REGISTAR", "CONSUMIR", "CONSULTAR", "COMPARAR_SUGERIR" ou "ANALISE_CONSUMO") e mais nada.
       Mensagem: "${texto}"
     `;
 
@@ -44,22 +44,24 @@ async function processarOrdem(ctx, texto) {
 
     const intencao = intentResult.response.text().trim().toUpperCase();
 
+    // 1. CONSULTAR INVENTÁRIO
     if (intencao.includes('CONSULTAR')) {
       const { data, error } = await supabase.from('despensa').select('*').order('item', { ascending: true });
       if (error || !data || data.length === 0) {
         return ctx.reply('📦 A despensa está vazia ou não consegui aceder aos dados.');
       }
-      let msgResposta = "📦 *Inventário Atual da Despensa:*\n";
+      let msgResposta = "📦 *Inventário Atual da Despensa:*\n\n";
       data.forEach(item => {
         const precoUn = item.preco_unitario ? Number(item.preco_unitario).toFixed(2) : '0.00';
         let alerta = "";
         if (item.quantidade === 0) alerta = " 🚨 *[ACABOU]*";
-        else if (item.quantidade === 1) alerta = " ⚠️ *[ACABANDO]*";
-        msgResposta += `- *${item.item}* (x${item.quantidade})${alerta} | R$ ${precoUn}\n`;
+        else if (item.quantidade === 1) alerta = " ⚠️ *[ACABando]*";
+        msgResposta += `• *${item.item}* (x${item.quantidade})${alerta} | R$ ${precoUn}\n`;
       });
       return ctx.replyWithMarkdown(msgResposta);
     }
 
+    // 2. COMPARAR / RELATÓRIO CRÍTICO
     if (intencao.includes('COMPARAR')) {
       const { data, error } = await supabase.from('despensa').select('*');
       if (error) return ctx.reply('📊 Erro ao puxar dados para análise.');
@@ -76,6 +78,51 @@ async function processarOrdem(ctx, texto) {
       return ctx.replyWithMarkdown(alertaMsg);
     }
 
+    // 3. ANÁLISE DE TEMPO DE CONSUMO (Linguagem Natural)
+    if (intencao.includes('ANALISE_CONSUMO')) {
+      // Pede ao Gemini para extrair o nome do produto que o utilizador quer analisar na frase
+      const promptItem = `Extrai apenas o nome do produto ou ingrediente que o utilizador quer saber o tempo de consumo. Devolve só o nome do item. Frase: "${texto}"`;
+      const resItem = await model.generateContent(promptItem);
+      const nomeItemBusca = resItem.response.text().trim();
+
+      // Puxa o histórico de movimentações do Supabase para fazer o cálculo matemático
+      const { data: histData, error: histError } = await supabase
+        .from('historico_movimentacoes')
+        .select('*')
+        .ilike('item', `%${nomeItemBusca}%`)
+        .order('created_at', { ascending: true });
+
+      if (histError || !histData || histData.length === 0) {
+        return ctx.reply(`🔍 Não encontrei histórico suficiente para o item "${nomeItemBusca}" para calcular o tempo de consumo.`);
+      }
+
+      let totalDias = 0;
+      let ciclos = 0;
+      let ultimaEntrada = null;
+
+      for (const mov of histData) {
+        const dataMov = new Date(mov.created_at);
+        if (mov.tipo_movimento === 'entrada') {
+          ultimaEntrada = dataMov;
+        } else if (mov.tipo_movimento === 'saida' && ultimaEntrada) {
+          const diffDays = Math.ceil(Math.abs(dataMov.getTime() - ultimaEntrada.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays > 0) {
+            totalDias += diffDays;
+            ciclos++;
+          }
+          ultimaEntrada = null;
+        }
+      }
+
+      if (ciclos === 0) {
+        return ctx.reply(`📊 O item "${nomeItemBusca}" tem registos, mas ainda não completou um ciclo completo de entrada e término no histórico.`);
+      }
+
+      const mediaDias = Math.round(totalDias / ciclos);
+      return ctx.replyWithMarkdown(`⏳ *Análise de Consumo para "${nomeItemBusca}":*\n\nCom base no teu histórico, este item dura em média *${mediaDias} dias* na despensa até precisar de reposição.`);
+    }
+
+    // 4. CONSUMIR (DAR BAIXA)
     if (intencao.includes('CONSUMIR')) {
       const promptConsumo = `Analisa este texto de consumo de despensa e devolve APENAS um array JSON: [{"item": "Nome", "quantidade": 1}]. Se a quantidade não for explicitada, assume 1. Texto: "${texto}"`;
       let result;
@@ -94,7 +141,7 @@ async function processarOrdem(ctx, texto) {
       if (jsonString.startsWith('```')) jsonString = jsonString.slice(3, -3);
 
       const itensConsumidos = JSON.parse(jsonString);
-      let msgResposta = "📉 *Baixa de Itens Registada:*\n";
+      let msgResposta = "📉 *Baixa de Itens Registada:*\n\n";
 
       for (const produto of itensConsumidos) {
         const { item, quantidade } = produto;
@@ -132,11 +179,12 @@ async function processarOrdem(ctx, texto) {
           await supabase.from('lista_compras').insert([{ item: dbItem.item }]);
         } else if (novaQuantidade === 1) alerta = " ⚠️ *[ACABANDO]*";
 
-        msgResposta += `- ${dbItem.item}: ${dbItem.quantidade} ➔ *${novaQuantidade}* ${alerta}\n`;
+        msgResposta += `• ${dbItem.item}: ${dbItem.quantidade} ➔ *${novaQuantidade}*${alerta}\n`;
       }
       return ctx.replyWithMarkdown(msgResposta);
     }
 
+    // 5. REGISTAR (COMPRAS / ENTRADAS)
     if (intencao.includes('REGISTAR')) {
       const promptRegisto = `Analisa este texto de registo de compras e devolve APENAS um array JSON: [{"item": "Nome", "quantidade": 1, "categoria": "Mercearia", "preco": 10.50, "loja": "Nome do Mercado", "pagamento": "Forma de Pagamento"}]. Se o utilizador não mencionar a loja ou o pagamento, preenche com "Não informado". Texto: "${texto}"`;
       let result;
@@ -155,7 +203,7 @@ async function processarOrdem(ctx, texto) {
       if (jsonString.startsWith('```')) jsonString = jsonString.slice(3, -3);
 
       const itens = JSON.parse(jsonString);
-      let msgResposta = "✅ *Compras Registadas (Voltou ao Inventário):*\n";
+      let msgResposta = "✅ *Compras Registadas (Voltou ao Inventário):*\n\n";
 
       for (const produto of itens) {
         const { item, quantidade, categoria, preco, loja, pagamento } = produto;
@@ -193,12 +241,12 @@ async function processarOrdem(ctx, texto) {
         if (insertHistoricoError) console.error("ERRO NO SUPABASE:", insertHistoricoError);
         
         await supabase.from('lista_compras').delete().ilike('item', `%${item}%`);
-        msgResposta += `- ${item} (x${qtdEntrada}) | Loja: ${loja || '?'} | R$ ${precoFinal.toFixed(2)}\n`;
+        msgResposta += `• ${item} (x${qtdEntrada}) | Loja: ${loja || '?'} | R$ ${precoFinal.toFixed(2)}\n`;
       }
       return ctx.replyWithMarkdown(msgResposta);
     }
 
-    return ctx.reply("❌ Ordem ambígua. Especifica se queres Registar (compras), Consumir (dar baixa) ou Consultar o inventário.");
+    return ctx.reply("❌ Ordem ambígua. Podes mandar em linguagem natural o que compraste, o que gastaste ou perguntar métricas como o tempo de consumo.");
 
   } catch (error) {
     console.error("ERRO COMPLETO - TAREFA CANCELADA:", error);
@@ -254,7 +302,6 @@ bot.on('photo', async (ctx) => {
     const fotos = ctx.message.photo;
     const maiorFoto = fotos[fotos.length - 1];
     
-    // Captura a quantidade informada na legenda (ex: "3"), se houver
     const legenda = ctx.message.caption || "1";
     
     const fileLink = await ctx.telegram.getFileLink(maiorFoto.file_id);
