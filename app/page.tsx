@@ -11,6 +11,7 @@ export default function GestaoDespensa() {
   const [abaAtiva, setAbaAtiva] = useState<'despensa' | 'compras' | 'historico'>('despensa');
   const [loading, setLoading] = useState(true);
   const [processandoCompra, setProcessandoCompra] = useState(false);
+  const [showFormMobile, setShowFormMobile] = useState(false);
 
   const [itens, setItens] = useState<any[]>([]);
   const [compras, setCompras] = useState<any[]>([]);
@@ -110,6 +111,7 @@ export default function GestaoDespensa() {
     setQuantidade('1'); 
     setPreco(''); 
     buscarItens();
+    setShowFormMobile(false); 
   };
 
   const darBaixaDespensa = async (item: any) => {
@@ -250,31 +252,31 @@ export default function GestaoDespensa() {
   });
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-[#0B0F19] text-gray-200 font-sans overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-screen bg-[#0B0F19] text-gray-200 font-sans overflow-hidden">
       
-      <aside className="w-full md:w-64 bg-[#111827] border-b md:border-b-0 md:border-r border-gray-800 flex flex-col shrink-0 z-20 shadow-md">
-        <div className="p-4 md:p-6 border-b border-gray-800">
+      <aside className="w-full lg:w-64 bg-[#111827] border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-col shrink-0 z-20 shadow-md">
+        <div className="p-4 lg:p-6 border-b border-gray-800">
           <h1 className="text-xl font-bold text-white flex items-center gap-2">📦 Gestão Sanchez</h1>
         </div>
-        <nav className="flex md:flex-col overflow-x-auto p-3 md:p-4 gap-2 md:space-y-2 whitespace-nowrap scrollbar-hide">
-          <button onClick={() => setAbaAtiva('despensa')} className={`w-auto md:w-full text-left px-4 py-3 md:py-2.5 rounded-lg flex items-center gap-3 transition-colors ${abaAtiva === 'despensa' ? 'bg-blue-600/20 text-blue-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}>
+        <nav className="flex lg:flex-col overflow-x-auto p-3 lg:p-4 gap-2 lg:space-y-2 whitespace-nowrap scrollbar-hide">
+          <button onClick={() => setAbaAtiva('despensa')} className={`w-auto lg:w-full text-left px-4 py-3 lg:py-2.5 rounded-lg flex items-center gap-3 transition-colors ${abaAtiva === 'despensa' ? 'bg-blue-600/20 text-blue-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}>
             📊 Inventário
           </button>
-          <button onClick={() => setAbaAtiva('compras')} className={`w-auto md:w-full text-left px-4 py-3 md:py-2.5 rounded-lg flex items-center justify-between gap-3 transition-colors ${abaAtiva === 'compras' ? 'bg-orange-600/20 text-orange-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}>
+          <button onClick={() => setAbaAtiva('compras')} className={`w-auto lg:w-full text-left px-4 py-3 lg:py-2.5 rounded-lg flex items-center justify-between gap-3 transition-colors ${abaAtiva === 'compras' ? 'bg-orange-600/20 text-orange-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}>
             <span className="flex items-center gap-2">🛒 <span className="hidden sm:inline">Lista de </span>Compras</span>
             {compras.length > 0 && <span className="bg-orange-500/20 text-orange-400 text-xs py-0.5 px-2 rounded-full">{compras.length}</span>}
           </button>
-          <button onClick={() => setAbaAtiva('historico')} className={`w-auto md:w-full text-left px-4 py-3 md:py-2.5 rounded-lg flex items-center gap-3 transition-colors ${abaAtiva === 'historico' ? 'bg-purple-600/20 text-purple-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}>
+          <button onClick={() => setAbaAtiva('historico')} className={`w-auto lg:w-full text-left px-4 py-3 lg:py-2.5 rounded-lg flex items-center gap-3 transition-colors ${abaAtiva === 'historico' ? 'bg-purple-600/20 text-purple-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}>
             📜 Histórico
           </button>
         </nav>
       </aside>
 
-      <main className="flex-1 overflow-y-auto relative pb-24 md:pb-8 p-4 md:p-8">
+      <main className="flex-1 overflow-y-auto relative pb-24 lg:pb-8 p-4 lg:p-8">
         
         {showCheckout && (
-          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/80 backdrop-blur-sm p-0 md:p-4">
-            <div className="bg-[#111827] border-t md:border border-gray-700 rounded-t-2xl md:rounded-xl p-6 w-full max-w-md shadow-2xl animate-slide-up md:animate-none">
+          <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center bg-black/80 backdrop-blur-sm p-0 lg:p-4">
+            <div className="bg-[#111827] border-t lg:border border-gray-700 rounded-t-2xl lg:rounded-xl p-6 w-full max-w-md shadow-2xl animate-slide-up lg:animate-none">
               <h3 className="text-xl font-bold text-white mb-2">Finalizar Missão</h3>
               <p className="text-gray-400 text-sm mb-6">Total da operação: <span className="text-green-400 font-bold text-lg">R$ {totalCarrinho.toFixed(2)}</span></p>
               
@@ -289,11 +291,11 @@ export default function GestaoDespensa() {
 	
 		 até 1,75% cashback
 	
-..." value={checkoutLoja} onChange={(e) => setCheckoutLoja(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 md:py-2 text-white focus:outline-none focus:border-green-500" />
+..." value={checkoutLoja} onChange={(e) => setCheckoutLoja(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-green-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-400 mb-1">COMO FOI PAGO?</label>
-                  <select value={checkoutPagamento} onChange={(e) => setCheckoutPagamento(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 md:py-2 text-white focus:outline-none focus:border-green-500">
+                  <select value={checkoutPagamento} onChange={(e) => setCheckoutPagamento(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-green-500">
                     <option value="Cartão de Crédito">Cartão de Crédito</option>
                     <option value="Cartão de Débito">Cartão de Débito</option>
                     <option value="Dinheiro">Dinheiro Físico</option>
@@ -303,13 +305,13 @@ export default function GestaoDespensa() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-400 mb-1">QUEM COMPROU?</label>
-                  <input type="text" autoComplete="off" value={checkoutResponsavel} onChange={(e) => setCheckoutResponsavel(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 md:py-2 text-white focus:outline-none focus:border-green-500" />
+                  <input type="text" autoComplete="off" value={checkoutResponsavel} onChange={(e) => setCheckoutResponsavel(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-green-500" />
                 </div>
               </div>
 
-              <div className="flex gap-3 mt-8 pb-4 md:pb-0">
-                <button onClick={() => setShowCheckout(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 py-4 md:py-3 rounded-lg font-medium transition-colors">Cancelar</button>
-                <button onClick={confirmarCompra} disabled={processandoCompra} className="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-4 md:py-3 rounded-lg transition-colors shadow-lg shadow-green-900/20">
+              <div className="flex gap-3 mt-8 pb-4 lg:pb-0">
+                <button onClick={() => setShowCheckout(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 py-4 lg:py-3 rounded-lg font-medium transition-colors">Cancelar</button>
+                <button onClick={confirmarCompra} disabled={processandoCompra} className="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-4 lg:py-3 rounded-lg transition-colors shadow-lg shadow-green-900/20">
                   {processandoCompra ? 'A gravar...' : 'Confirmar'}
                 </button>
               </div>
@@ -318,32 +320,42 @@ export default function GestaoDespensa() {
         )}
 
         {abaAtiva === 'despensa' && (
-          <div className="max-w-6xl mx-auto space-y-6 md:space-y-8">
+          <div className="max-w-6xl mx-auto space-y-6 lg:space-y-8">
              <header><h2 className="text-2xl font-bold text-white">Inventário da Despensa</h2></header>
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-              <div className="bg-[#111827] border border-gray-800 rounded-xl p-5 md:p-6 h-fit shadow-sm">
-                <h3 className="text-lg font-semibold text-white mb-5">Novo Lançamento</h3>
-                <form onSubmit={adicionarItem} className="space-y-5">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1">PRODUTO</label>
-                    <input type="text" required value={nome} onChange={(e) => setNome(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 md:py-2 text-white focus:outline-none focus:border-blue-500" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+              
+              {/* Overlay do Formulário no Mobile / Bloco Normal no Desktop */}
+              <div className={`${showFormMobile ? 'fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-sm p-4' : 'hidden lg:block'} lg:static lg:flex lg:items-start lg:justify-start lg:bg-transparent lg:backdrop-blur-none lg:p-0`}>
+                <div className="bg-[#111827] w-full border border-gray-700 lg:border-gray-800 rounded-2xl lg:rounded-xl p-6 h-fit shadow-2xl lg:shadow-sm relative animate-slide-up lg:animate-none">
+                  
+                  {/* Botão de Fechar Exclusivo do Mobile */}
+                  <button type="button" onClick={() => setShowFormMobile(false)} className="lg:hidden absolute top-4 right-4 text-gray-400 hover:text-white bg-gray-800/50 rounded-full p-2 w-8 h-8 flex items-center justify-center">
+                    ✕
+                  </button>
+
+                  <h3 className="text-lg font-semibold text-white mb-5">Novo Lançamento</h3>
+                  <form onSubmit={adicionarItem} className="space-y-5">
                     <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-1">QTD</label>
-                      <input type="number" inputMode="numeric" pattern="[0-9]*" min="1" required value={quantidade} onChange={(e) => setQuantidade(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 md:py-2 text-white focus:outline-none focus:border-blue-500" />
+                      <label className="block text-xs font-medium text-gray-400 mb-1">PRODUTO</label>
+                      <input type="text" required value={nome} onChange={(e) => setNome(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500" />
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-1">PREÇO (R$)</label>
-                      <input type="text" inputMode="decimal" placeholder="0,00" value={preco} onChange={(e) => setPreco(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 md:py-2 text-white focus:outline-none focus:border-blue-500" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">QTD</label>
+                        <input type="number" inputMode="numeric" pattern="[0-9]*" min="1" required value={quantidade} onChange={(e) => setQuantidade(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">PREÇO (R$)</label>
+                        <input type="text" inputMode="decimal" placeholder="0,00" value={preco} onChange={(e) => setPreco(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500" />
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><label className="block text-xs font-medium text-gray-400 mb-1">CATEGORIA</label><select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 md:py-2 text-white focus:outline-none focus:border-blue-500"><option>Mercearia</option><option>Bebidas</option><option>Limpeza</option><option>Talho</option><option>Outros</option></select></div>
-                    <div><label className="block text-xs font-medium text-gray-400 mb-1">LOCAL</label><select value={local} onChange={(e) => setLocal(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 md:py-2 text-white focus:outline-none focus:border-blue-500"><option>Armário</option><option>Frigorífico</option><option>Arca</option></select></div>
-                  </div>
-                  <button type="submit" className="w-full bg-[#059669] hover:bg-[#047857] text-white font-bold py-4 md:py-3 rounded-lg mt-4 shadow-md transition-colors">Guardar no Stock</button>
-                </form>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label className="block text-xs font-medium text-gray-400 mb-1">CATEGORIA</label><select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500"><option>Mercearia</option><option>Bebidas</option><option>Limpeza</option><option>Talho</option><option>Outros</option></select></div>
+                      <div><label className="block text-xs font-medium text-gray-400 mb-1">LOCAL</label><select value={local} onChange={(e) => setLocal(e.target.value)} className="w-full bg-[#0B0F19] border border-gray-800 rounded-lg px-4 py-3 lg:py-2 text-white focus:outline-none focus:border-blue-500"><option>Armário</option><option>Frigorífico</option><option>Arca</option></select></div>
+                    </div>
+                    <button type="submit" className="w-full bg-[#059669] hover:bg-[#047857] text-white font-bold py-4 lg:py-3 rounded-lg mt-4 shadow-md transition-colors">Guardar no Stock</button>
+                  </form>
+                </div>
               </div>
 
               <div className="lg:col-span-2 bg-[#111827] border border-gray-800 rounded-xl overflow-hidden shadow-sm">
@@ -398,6 +410,17 @@ export default function GestaoDespensa() {
                 </div>
               </div>
             </div>
+
+            {/* O Botão de Ação Flutuante (FAB) - Exclusivo Mobile */}
+            {!showFormMobile && (
+              <button 
+                onClick={() => setShowFormMobile(true)}
+                className="lg:hidden fixed bottom-6 right-6 w-14 h-14 bg-[#059669] hover:bg-[#047857] rounded-full flex items-center justify-center text-white text-4xl font-light shadow-[0_5px_20px_rgba(5,150,105,0.4)] z-40 transition-transform active:scale-90 pb-1"
+              >
+                +
+              </button>
+            )}
+
           </div>
         )}
 
@@ -419,7 +442,6 @@ export default function GestaoDespensa() {
                   <thead>
                     <tr className="border-b border-gray-800 text-[9px] md:text-xs text-gray-400 bg-gray-900/50">
                       <th className="p-2 md:p-4 uppercase">Item</th>
-                      {/* Removida a ocultação tática - Visão Absoluta no Mobile */}
                       <th className="p-2 md:p-4 uppercase text-center border-l border-gray-800/30">Últ.</th>
                       <th className="p-2 md:p-4 uppercase text-center border-r border-gray-800/30">Méd.</th>
                       <th className="p-2 md:p-4 uppercase text-blue-400 text-center w-12 md:w-24">Qtd</th>
