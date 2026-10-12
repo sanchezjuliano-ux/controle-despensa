@@ -12,6 +12,7 @@ export default function GestaoDespensa() {
   const [loading, setLoading] = useState(true);
   const [processandoCompra, setProcessandoCompra] = useState(false);
   const [showFormMobile, setShowFormMobile] = useState(false);
+  const [analisandoFoto, setAnalisandoFoto] = useState(false);
 
   const [itens, setItens] = useState<any[]>([]);
   const [compras, setCompras] = useState<any[]>([]);
@@ -91,6 +92,61 @@ export default function GestaoDespensa() {
     const { data, error } = await supabase.from('compras_realizadas').select('*').order('id', { ascending: false });
     if (error) console.error("ERRO AO CARREGAR HISTÓRICO:", error);
     setHistoricoCompras(data || []);
+  };
+
+  const handleFotoLancamento = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setAnalisandoFoto(true);
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const res = await fetch('/api/analisar-etiqueta', { method: 'POST', body: formData });
+      const json = await res.json();
+
+      if (json.success && json.data) {
+        if (json.data.item) setNome(json.data.item);
+        if (json.data.preco) setPreco(String(json.data.preco).replace('.', ','));
+        if (json.data.quantidade) setQuantidade(String(json.data.quantidade));
+        if (json.data.categoria && listaCategorias.includes(json.data.categoria)) {
+          setCategoria(json.data.categoria);
+        }
+      } else {
+        alert("Não foi possível extrair dados da etiqueta.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao enviar foto para análise.");
+    } finally {
+      setAnalisandoFoto(false);
+    }
+  };
+
+  const handleFotoCarrinho = async (e: React.ChangeEvent<HTMLInputElement>, compraId: number) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const res = await fetch('/api/analisar-etiqueta', { method: 'POST', body: formData });
+      const json = await res.json();
+
+      if (json.success && json.data) {
+        const precoLido = json.data.preco ? String(json.data.preco).replace('.', ',') : '';
+        const qtdLida = json.data.quantidade ? String(json.data.quantidade) : '1';
+
+        setCompras(compras.map(c => c.id === compraId ? { ...c, preco_compra: precoLido, qtd_compra: qtdLida } : c));
+      } else {
+        alert("Não foi possível ler o preço na etiqueta.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao analisar foto no carrinho.");
+    }
   };
 
   const adicionarItem = async (e: React.FormEvent) => {
@@ -221,37 +277,20 @@ export default function GestaoDespensa() {
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-[#0B0F19] text-gray-200 font-sans overflow-hidden">
       
-      {/* Barra de Navegação Otimizada para Mobile e Desktop */}
       <aside className="w-full lg:w-64 bg-[#111827] border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-col shrink-0 z-20 shadow-md">
         <div className="p-3 lg:p-6 border-b border-gray-800 flex items-center justify-between lg:block">
           <h1 className="text-lg lg:text-xl font-bold text-white flex items-center gap-2">📦 Gestão Sanchez</h1>
         </div>
         <nav className="grid grid-cols-3 lg:flex lg:flex-col p-2 lg:p-4 gap-1.5 lg:space-y-2">
-          <button 
-            onClick={() => setAbaAtiva('despensa')} 
-            className={`text-center lg:text-left px-2 lg:px-4 py-2.5 lg:py-2.5 rounded-lg flex flex-col lg:flex-row items-center justify-center lg:justify-start gap-1 lg:gap-3 transition-colors text-xs lg:text-sm ${abaAtiva === 'despensa' ? 'bg-blue-600/20 text-blue-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}
-          >
-            <span>📊</span>
-            <span className="truncate">Despensa</span>
+          <button onClick={() => setAbaAtiva('despensa')} className={`text-center lg:text-left px-2 lg:px-4 py-2.5 lg:py-2.5 rounded-lg flex flex-col lg:flex-row items-center justify-center lg:justify-start gap-1 lg:gap-3 transition-colors text-xs lg:text-sm ${abaAtiva === 'despensa' ? 'bg-blue-600/20 text-blue-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}>
+            <span>📊</span><span className="truncate">Despensa</span>
           </button>
-
-          <button 
-            onClick={() => setAbaAtiva('compras')} 
-            className={`text-center lg:text-left px-2 lg:px-4 py-2.5 lg:py-2.5 rounded-lg flex flex-col lg:flex-row items-center justify-center lg:justify-between gap-1 lg:gap-3 transition-colors text-xs lg:text-sm ${abaAtiva === 'compras' ? 'bg-orange-600/20 text-orange-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}
-          >
-            <span className="flex items-center justify-center gap-1">
-              <span>🛒</span>
-              <span className="truncate">Compras</span>
-            </span>
+          <button onClick={() => setAbaAtiva('compras')} className={`text-center lg:text-left px-2 lg:px-4 py-2.5 lg:py-2.5 rounded-lg flex flex-col lg:flex-row items-center justify-center lg:justify-between gap-1 lg:gap-3 transition-colors text-xs lg:text-sm ${abaAtiva === 'compras' ? 'bg-orange-600/20 text-orange-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}>
+            <span className="flex items-center justify-center gap-1"><span>🛒</span><span className="truncate">Compras</span></span>
             {compras.length > 0 && <span className="bg-orange-500/20 text-orange-400 text-[10px] lg:text-xs py-0.5 px-1.5 lg:px-2 rounded-full">{compras.length}</span>}
           </button>
-
-          <button 
-            onClick={() => setAbaAtiva('historico')} 
-            className={`text-center lg:text-left px-2 lg:px-4 py-2.5 lg:py-2.5 rounded-lg flex flex-col lg:flex-row items-center justify-center lg:justify-start gap-1 lg:gap-3 transition-colors text-xs lg:text-sm ${abaAtiva === 'historico' ? 'bg-purple-600/20 text-purple-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}
-          >
-            <span>📜</span>
-            <span className="truncate">Histórico</span>
+          <button onClick={() => setAbaAtiva('historico')} className={`text-center lg:text-left px-2 lg:px-4 py-2.5 lg:py-2.5 rounded-lg flex flex-col lg:flex-row items-center justify-center lg:justify-start gap-1 lg:gap-3 transition-colors text-xs lg:text-sm ${abaAtiva === 'historico' ? 'bg-purple-600/20 text-purple-400 font-medium' : 'hover:bg-gray-800/50 text-gray-400'}`}>
+            <span>📜</span><span className="truncate">Histórico</span>
           </button>
         </nav>
       </aside>
@@ -294,7 +333,14 @@ export default function GestaoDespensa() {
                 <div className="bg-[#111827] w-full border border-gray-700 lg:border-gray-800 rounded-2xl lg:rounded-xl p-6 h-fit shadow-2xl lg:shadow-sm relative animate-slide-up lg:animate-none">
                   <button type="button" onClick={() => setShowFormMobile(false)} className="lg:hidden absolute top-4 right-4 text-gray-400 hover:text-white bg-gray-800/50 rounded-full p-2 w-8 h-8 flex items-center justify-center">✕</button>
 
-                  <h3 className="text-lg font-semibold text-white mb-5">Novo Lançamento</h3>
+                  <div className="flex justify-between items-center mb-5">
+                    <h3 className="text-lg font-semibold text-white">Novo Lançamento</h3>
+                    <label className="cursor-pointer bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/50 text-blue-400 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors">
+                      <span>📸</span> {analisandoFoto ? 'A ler...' : 'Ler Etiqueta'}
+                      <input type="file" accept="image/*" capture="environment" onChange={handleFotoLancamento} className="hidden" disabled={analisandoFoto} />
+                    </label>
+                  </div>
+
                   <form onSubmit={adicionarItem} className="space-y-5">
                     <div>
                       <label className="block text-xs font-medium text-gray-400 mb-1">PRODUTO</label>
@@ -495,12 +541,7 @@ export default function GestaoDespensa() {
             </div>
 
             {!showFormMobile && (
-              <button 
-                onClick={() => setShowFormMobile(true)}
-                className="lg:hidden fixed bottom-6 right-6 w-14 h-14 bg-[#059669] hover:bg-[#047857] rounded-full flex items-center justify-center text-white text-4xl font-light shadow-[0_5px_20px_rgba(5,150,105,0.4)] z-40 transition-transform active:scale-90 pb-1"
-              >
-                +
-              </button>
+              <button onClick={() => setShowFormMobile(true)} className="lg:hidden fixed bottom-6 right-6 w-14 h-14 bg-[#059669] hover:bg-[#047857] rounded-full flex items-center justify-center text-white text-4xl font-light shadow-[0_5px_20px_rgba(5,150,105,0.4)] z-40 transition-transform active:scale-90 pb-1">+</button>
             )}
           </div>
         )}
@@ -518,9 +559,9 @@ export default function GestaoDespensa() {
             <div className="bg-[#111827] md:border border-gray-800 rounded-xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto w-full">
                 <table className="w-full text-left border-collapse min-w-full">
-                  <thead><tr className="border-b border-gray-800 text-[9px] md:text-xs text-gray-400 bg-gray-900/50"><th className="p-2 md:p-4 uppercase">Item</th><th className="p-2 md:p-4 uppercase text-center border-l border-gray-800/30">Últ.</th><th className="p-2 md:p-4 uppercase text-center border-r border-gray-800/30">Méd.</th><th className="p-2 md:p-4 uppercase text-blue-400 text-center w-12 md:w-24">Qtd</th><th className="p-2 md:p-4 uppercase text-blue-400 text-center w-24 md:w-40">Preço</th><th className="p-2 md:p-4 text-right"></th></tr></thead>
+                  <thead><tr className="border-b border-gray-800 text-[9px] md:text-xs text-gray-400 bg-gray-900/50"><th className="p-2 md:p-4 uppercase">Item</th><th className="p-2 md:p-4 uppercase text-center border-l border-gray-800/30">Últ.</th><th className="p-2 md:p-4 uppercase text-center border-r border-gray-800/30">Méd.</th><th className="p-2 md:p-4 uppercase text-blue-400 text-center w-12 md:w-24">Qtd</th><th className="p-2 md:p-4 uppercase text-blue-400 text-center w-24 md:w-40">Preço (R$)</th><th className="p-2 md:p-4 uppercase text-center w-16">Foto</th><th className="p-2 md:p-4 text-right"></th></tr></thead>
                   <tbody>
-                    {compras.length === 0 ? (<tr><td colSpan={6} className="text-center py-12 text-gray-500">O carrinho está vazio.</td></tr>) : (
+                    {compras.length === 0 ? (<tr><td colSpan={7} className="text-center py-12 text-gray-500">O carrinho está vazio.</td></tr>) : (
                       compras.map((compra) => (
                         <tr key={compra.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
                           <td className="p-2 md:p-4"><span className="font-bold text-orange-100 block text-xs md:text-lg truncate max-w-[80px] md:max-w-none">{compra.item}</span><span className="text-gray-500 text-[9px] md:text-xs uppercase tracking-wider hidden sm:block">{compra.categoria}</span></td>
@@ -528,6 +569,14 @@ export default function GestaoDespensa() {
                           <td className="p-2 md:p-4 text-center bg-gray-800/10 text-gray-400 text-[10px] md:text-sm font-medium border-r border-gray-800/30">R$ {compra.preco_medio.toFixed(2)}</td>
                           <td className="p-2 md:p-4 text-center"><input type="number" inputMode="numeric" pattern="[0-9]*" min="1" value={compra.qtd_compra} onChange={(e) => atualizarCarrinho(compra.id, 'qtd_compra', e.target.value)} className="w-10 md:w-16 bg-[#0B0F19] border border-blue-900/50 text-white font-bold px-1 py-2 md:py-2 rounded md:rounded-lg text-center text-xs md:text-base outline-none focus:border-blue-500 transition-colors" /></td>
                           <td className="p-2 md:p-4"><div className="relative flex items-center"><span className="absolute left-1 md:left-3 text-gray-500 text-[10px] md:text-sm font-bold">R$</span><input type="text" inputMode="decimal" placeholder="0.00" value={compra.preco_compra} onChange={(e) => atualizarCarrinho(compra.id, 'preco_compra', e.target.value)} className={`w-full bg-[#0B0F19] border text-white font-bold pl-5 md:pl-8 pr-1 py-2 md:py-2 rounded md:rounded-lg text-center text-xs md:text-base focus:outline-none transition-colors ${parseFloat(String(compra.preco_compra).replace(',', '.')) > 0 ? 'border-green-500 bg-green-900/10' : 'border-blue-900/50 focus:border-blue-500'}`} /></div></td>
+                          
+                          <td className="p-2 text-center">
+                            <label className="cursor-pointer inline-flex items-center justify-center w-9 h-9 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/40 text-blue-400 rounded-lg text-sm transition-colors active:scale-95" title="Tirar foto da etiqueta">
+                              📸
+                              <input type="file" accept="image/*" capture="environment" onChange={(e) => handleFotoCarrinho(e, compra.id)} className="hidden" />
+                            </label>
+                          </td>
+
                           <td className="p-1 md:p-4 text-right"><button onClick={() => apagarDaLista(compra.id)} className="text-red-500/70 hover:text-red-400 p-1 md:p-2 text-lg md:text-xl font-bold">×</button></td>
                         </tr>
                       ))
