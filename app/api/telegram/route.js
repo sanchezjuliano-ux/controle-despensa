@@ -12,7 +12,6 @@ const bot = new Telegraf(token);
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-// CÉREBRO PRINCIPAL: Gemini 3.8 Flash (modelo atual recomendado pela API)
 const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
 
 async function processarOrdem(ctx, texto) {
@@ -266,7 +265,9 @@ bot.on('photo', async (ctx) => {
       },
     };
 
-    const promptFoto = "Analisa esta imagem de uma etiqueta de preço, talão ou produto de supermercado. Extrai o nome do produto, o preço, a quantidade (se visível) e a categoria. Devolve num formato de texto claro que sirva para registar a compra.";
+    // PROMPT CORRIGIDO: Força a IA a devolver diretamente o texto de compra estruturado, sem explicações
+    const promptFoto = "Analisa esta imagem de uma etiqueta de preço ou produto. Extrai estritamente no formato: Comprei [quantidade] unidade(s) de [nome do produto] por [preço] reais na loja [nome do mercado se visível, senão 'Supermercado']. Exemplo: Comprei 1 unidade de Fósforo Pinheiro por 5.89 reais na loja Tenda.";
+    
     let fotoResult;
     try {
       fotoResult = await model.generateContent([promptFoto, imagePart]);
@@ -280,7 +281,7 @@ bot.on('photo', async (ctx) => {
 
     const textoExtraido = fotoResult.response.text().trim();
     await ctx.reply(`✅ Produto Detetado:\n${textoExtraido}\n⚙️ A registar na despensa...`);
-    await processarOrdem(ctx, `Comprei: ${textoExtraido}`);
+    await processarOrdem(ctx, textoExtraido);
   } catch (error) {
     console.error("Erro no processamento de foto - TAREFA CANCELADA:", error);
     ctx.reply("❌ Tarefa cancelada devido a um erro ao processar a fotografia.");
