@@ -14,8 +14,10 @@ export default function Home() {
   const [listaCompras, setListaCompras] = useState<any[]>([]);
   const [historico, setHistorico] = useState<any[]>([]);
   const [loadingIA, setLoadingIA] = useState(false);
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
-  // Estados do Formulário de Novo Lançamento
+  // Estados do Formulário e Edição
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [item, setItem] = useState('');
   const [quantidade, setQuantidade] = useState(1);
   const [validade, setValidade] = useState('');
@@ -42,7 +44,7 @@ export default function Home() {
     if (historicoData) setHistorico(historicoData);
   }
 
-  // Função para comprimir a imagem no browser antes de enviar (Evita o erro 413 Payload Too Large)
+  // Função para comprimir a imagem no browser antes de enviar
   const comprimirImagem = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -109,6 +111,7 @@ export default function Home() {
         setPreco(json.data.preco ? json.data.preco.toString() : '');
         setQuantidade(json.data.quantidade || 1);
         if (json.data.categoria) setCategoria(json.data.categoria);
+        setMostrarFormulario(true);
         alert('✨ Etiqueta lida com sucesso!');
       } else {
         alert('⚠️ ' + (json.error || 'Não foi possível extrair dados da etiqueta.'));
@@ -130,46 +133,87 @@ export default function Home() {
     const qtdNum = parseInt(quantidade.toString()) || 1;
     const precoUnit = precoNum / qtdNum;
 
-    const { data: existente } = await supabase.from('despensa').select('*').ilike('item', `%${item}%`);
-
-    if (existente && existente.length > 0) {
-      const atual = existente[0];
+    if (editingId) {
+      // Atualizar item existente
       await supabase.from('despensa').update({
-        quantidade: atual.quantidade + qtdNum,
-        preco_unitario: precoUnit,
-        validade: validade || atual.validade
-      }).eq('id', atual.id);
-    } else {
-      await supabase.from('despensa').insert([{
         item,
         quantidade: qtdNum,
         validade: validade || null,
         categoria,
         local,
         preco_unitario: precoUnit
+      }).eq('id', editingId);
+
+      alert('✅ Item atualizado com sucesso!');
+    } else {
+      // Inserir ou somar novo item
+      const { data: existente } = await supabase.from('despensa').select('*').ilike('item', `%${item}%`);
+
+      if (existente && existente.length > 0) {
+        const atual = existente[0];
+        await supabase.from('despensa').update({
+          quantidade: atual.quantidade + qtdNum,
+          preco_unitario: precoUnit,
+          validade: validade || atual.validade
+        }).eq('id', atual.id);
+      } else {
+        await supabase.from('despensa').insert([{
+          item,
+          quantidade: qtdNum,
+          validade: validade || null,
+          categoria,
+          local,
+          preco_unitario: precoUnit
+        }]);
+      }
+
+      await supabase.from('historico_movimentacoes').insert([{
+        item,
+        tipo_movimento: 'entrada',
+        quantidade: qtdNum,
+        preco_unitario: precoUnit,
+        responsavel: 'Painel Web',
+        loja: loja || 'Não informado',
+        metodo_pagamento: pagamento || 'Não informado'
       }]);
+
+      await supabase.from('lista_compras').delete().ilike('item', `%${item}%`);
+      alert('✅ Guardado no stock com sucesso!');
     }
 
-    await supabase.from('historico_movimentacoes').insert([{
-      item,
-      tipo_movimento: 'entrada',
-      quantidade: qtdNum,
-      preco_unitario: precoUnit,
-      responsavel: 'Painel Web',
-      loja: loja || 'Não informado',
-      metodo_pagamento: pagamento || 'Não informado'
-    }]);
-
-    await supabase.from('lista_compras').delete().ilike('item', `%${item}%`);
-
+    // Limpar formulário e fechar
+    setEditingId(null);
     setItem('');
     setQuantidade(1);
     setValidade('');
     setPreco('');
     setLoja('');
     setPagamento('');
+    setMostrarFormulario(false);
     carregarDados();
-    alert('✅ Guardado no stock com sucesso!');
+  }
+
+  async function iniciarEdicao(prod: any) {
+    setEditingId(prod.id);
+    setItem(prod.item || '');
+    setQuantidade(prod.quantidade || 1);
+    setValidade(prod.validade || '');
+    setCategoria(prod.categoria || 'Mercearia');
+    setLocal(prod.local || 'Armário');
+    setPreco(prod.preco_unitario ? (prod.preco_unitario * prod.quantidade).toFixed(2) : '');
+    setMostrarFormulario(true);
+  }
+
+  async function excluirItem(id: string, itemName: string) {
+    if (!confirm(`Tens a certeza que queres eliminar "${itemName}" do inventário?`)) return;
+
+    const { error } = await supabase.from('despensa').delete().eq('id', id);
+    if (!error) {
+      alert('🗑️ Item excluído com sucesso.');
+      carregarDados();
+    } else {
+      alert('Erro ao excluir item.');
+    }
   }
 
   async function darBaixa(id: string, currentQtd: number, itemName: string) {
@@ -196,7 +240,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row font-sans">
-      {/* BARRA LATERAL (Sidebar) */}
+      {/* BARRA LATERAL */}
       <aside className="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-5 flex flex-col justify-between">
         <div>
           <div className="flex items-center gap-2 mb-8">
@@ -248,144 +292,175 @@ export default function Home() {
       {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto max-w-5xl">
         
-        {/* GUIA 1: DESPENSA / NOVO LANÇAMENTO */}
+        {/* GUIA 1: DESPENSA */}
         {activeTab === 'despensa' && (
           <div className="space-y-6">
-            {/* Formulário de Novo Lançamento com o Botão de IA */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-emerald-400">Novo Lançamento</h2>
-                
-                <div>
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    capture="environment" 
-                    ref={fileInputRef} 
-                    onChange={handleAnalisarEtiqueta} 
-                    className="hidden" 
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => fileInputRef.current?.click()} 
-                    disabled={loadingIA}
-                    className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition disabled:opacity-50"
-                  >
-                    {loadingIA ? '⏳ A ler etiqueta...' : '📸 Ler Etiqueta com IA'}
-                  </button>
-                </div>
+            
+            {/* BOTÃO PARA MOSTRAR/ESCONDER LANÇAMENTO E LEITOR DE IA */}
+            <div className="flex justify-between items-center bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-lg">
+              <button
+                onClick={() => {
+                  setEditingId(null);
+                  setItem('');
+                  setQuantidade(1);
+                  setValidade('');
+                  setPreco('');
+                  setMostrarFormulario(!mostrarFormulario);
+                }}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition flex items-center gap-2 shadow"
+              >
+                <span>{mostrarFormulario ? '✕ Fechar Lançamento' : '➕ Novo Lançamento'}</span>
+              </button>
+
+              <div>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  capture="environment" 
+                  ref={fileInputRef} 
+                  onChange={handleAnalisarEtiqueta} 
+                  className="hidden" 
+                />
+                <button 
+                  type="button" 
+                  onClick={() => fileInputRef.current?.click()} 
+                  disabled={loadingIA}
+                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 shadow transition disabled:opacity-50"
+                >
+                  {loadingIA ? '⏳ A ler etiqueta...' : '📸 Ler Etiqueta com IA'}
+                </button>
               </div>
-
-              <form onSubmit={handleGuardarStock} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-xs text-slate-400 mb-1">Nome do Item</label>
-                  <input 
-                    type="text" 
-                    value={item} 
-                    onChange={e => setItem(e.target.value)} 
-                    placeholder="Ex: Fósforo Pinheiro" 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
-                    required 
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">Quantidade</label>
-                  <input 
-                    type="number" 
-                    value={quantidade} 
-                    onChange={e => setQuantidade(Number(e.target.value))} 
-                    min="1" 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
-                    required 
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">Preço Total (R$)</label>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    value={preco} 
-                    onChange={e => setPreco(e.target.value)} 
-                    placeholder="0.00" 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">Validade</label>
-                  <input 
-                    type="date" 
-                    value={validade} 
-                    onChange={e => setValidade(e.target.value)} 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300" 
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">Categoria</label>
-                  <select 
-                    value={categoria} 
-                    onChange={e => setCategoria(e.target.value)} 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
-                  >
-                    <option value="Mercearia">Mercearia</option>
-                    <option value="Limpeza">Limpeza</option>
-                    <option value="Higiene">Higiene</option>
-                    <option value="Bebidas">Bebidas</option>
-                    <option value="Outros">Outros</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">Local</label>
-                  <select 
-                    value={local} 
-                    onChange={e => setLocal(e.target.value)} 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
-                  >
-                    <option value="Armário">Armário</option>
-                    <option value="Frigorífico">Frigorífico</option>
-                    <option value="Despensa">Despensa</option>
-                    <option value="Área de Serviço">Área de Serviço</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">Loja / Supermercado</label>
-                  <input 
-                    type="text" 
-                    value={loja} 
-                    onChange={e => setLoja(e.target.value)} 
-                    placeholder="Ex: Tenda" 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-xs text-slate-400 mb-1">Forma de Pagamento</label>
-                  <input 
-                    type="text" 
-                    value={pagamento} 
-                    onChange={e => setPagamento(e.target.value)} 
-                    placeholder="Ex: Cartão Tenda" 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
-                  />
-                </div>
-
-                <div className="md:col-span-2 mt-2">
-                  <button 
-                    type="submit" 
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3.5 rounded-xl text-sm transition shadow-lg shadow-emerald-950"
-                  >
-                    Guardar no Stock
-                  </button>
-                </div>
-              </form>
             </div>
 
-            {/* Inventário Atual */}
+            {/* CAIXA DE LANÇAMENTO / EDIÇÃO OCULTÁVEL */}
+            {mostrarFormulario && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl animate-fadeIn">
+                <h2 className="text-xl font-bold text-emerald-400 mb-4">
+                  {editingId ? '✏️ Editar Item' : '📥 Novo Lançamento'}
+                </h2>
+
+                <form onSubmit={handleGuardarStock} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs text-slate-400 mb-1">Nome do Item</label>
+                    <input 
+                      type="text" 
+                      value={item} 
+                      onChange={e => setItem(e.target.value)} 
+                      placeholder="Ex: Fósforo Pinheiro" 
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
+                      required 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Quantidade</label>
+                    <input 
+                      type="number" 
+                      value={quantidade} 
+                      onChange={e => setQuantidade(Number(e.target.value))} 
+                      min="1" 
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
+                      required 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Preço Total (R$)</label>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      value={preco} 
+                      onChange={e => setPreco(e.target.value)} 
+                      placeholder="0.00" 
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Validade</label>
+                    <input 
+                      type="date" 
+                      value={validade} 
+                      onChange={e => setValidade(e.target.value)} 
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Categoria</label>
+                    <select 
+                      value={categoria} 
+                      onChange={e => setCategoria(e.target.value)} 
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
+                    >
+                      <option value="Mercearia">Mercearia</option>
+                      <option value="Limpeza">Limpeza</option>
+                      <option value="Higiene">Higiene</option>
+                      <option value="Bebidas">Bebidas</option>
+                      <option value="Outros">Outros</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Local</label>
+                    <select 
+                      value={local} 
+                      onChange={e => setLocal(e.target.value)} 
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
+                    >
+                      <option value="Armário">Armário</option>
+                      <option value="Frigorífico">Frigorífico</option>
+                      <option value="Despensa">Despensa</option>
+                      <option value="Área de Serviço">Área de Serviço</option>
+                    </select>
+                  </div>
+
+                  {!editingId && (
+                    <>
+                      <div>
+                        <label className="block text-xs text-slate-400 mb-1">Loja / Supermercado</label>
+                        <input 
+                          type="text" 
+                          value={loja} 
+                          onChange={e => setLoja(e.target.value)} 
+                          placeholder="Ex: Tenda" 
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-xs text-slate-400 mb-1">Forma de Pagamento</label>
+                        <input 
+                          type="text" 
+                          value={pagamento} 
+                          onChange={e => setPagamento(e.target.value)} 
+                          placeholder="Ex: Cartão Tenda" 
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div className="md:col-span-2 mt-2 flex gap-3">
+                    <button 
+                      type="submit" 
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3.5 rounded-xl text-sm transition shadow-lg shadow-emerald-950"
+                    >
+                      {editingId ? 'Salvar Alterações' : 'Guardar no Stock'}
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setMostrarFormulario(false)}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-5 py-3.5 rounded-xl text-sm transition"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Inventário Atual com Botões de Ação (Consumir, Editar, Excluir) */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
               <h2 className="text-xl font-bold text-emerald-400 mb-4">Inventário Atual</h2>
               <div className="overflow-x-auto">
@@ -410,12 +485,27 @@ export default function Home() {
                         <td className="py-3.5 text-center font-bold">{prod.quantidade}</td>
                         <td className="py-3.5 text-xs text-slate-400">{prod.validade || 'Sem data'}</td>
                         <td className="py-3.5 text-slate-300">R$ {Number(prod.preco_unitario || 0).toFixed(2)}</td>
-                        <td className="py-3.5 text-right">
+                        <td className="py-3.5 text-right space-x-1.5">
                           <button 
                             onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
-                            className="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 px-3 py-1.5 rounded-xl text-xs font-medium transition"
+                            className="bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                            title="Consumir 1 unidade"
                           >
-                            -1 Consumir
+                            -1
+                          </button>
+                          <button 
+                            onClick={() => iniciarEdicao(prod)}
+                            className="bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                            title="Editar item"
+                          >
+                            ✏️ Editar
+                          </button>
+                          <button 
+                            onClick={() => excluirItem(prod.id, prod.item)}
+                            className="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                            title="Excluir item"
+                          >
+                            🗑️
                           </button>
                         </td>
                       </tr>
