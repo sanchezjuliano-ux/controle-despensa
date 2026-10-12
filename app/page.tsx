@@ -16,7 +16,6 @@ export default function Home() {
   const [loadingIA, setLoadingIA] = useState(false);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
-  // Estado para controlar quais itens estão expandidos no telemóvel (guarda os IDs)
   const [expandedItems, setExpandedItems] = useState<{ [key: string]: boolean }>({});
 
   // Estados do Formulário e Edição
@@ -45,6 +44,24 @@ export default function Home() {
 
     const { data: historicoData } = await supabase.from('historico_movimentacoes').select('*').order('created_at', { ascending: false }).limit(50);
     if (historicoData) setHistorico(historicoData);
+  }
+
+  // Função para enviar alerta automático para o Telegram
+  async function enviarAlertaTelegram(mensagem: string) {
+    try {
+      await fetch('/api/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            chat: { id: process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID },
+            text: mensagem
+          }
+        })
+      });
+    } catch (e) {
+      console.error("Erro ao enviar alerta para o Telegram:", e);
+    }
   }
 
   const comprimirImagem = (file: File): Promise<Blob> => {
@@ -232,6 +249,11 @@ export default function Home() {
 
     if (novaQtd === 0) {
       await supabase.from('lista_compras').insert([{ item: itemName }]);
+      // Envia alerta automático de esgotado para o Telegram
+      await enviarAlertaTelegram(`🚨 ALERTA DESPENSA: O item *${itemName}* ACABOU e foi movido para a lista de compras!`);
+    } else if (novaQtd === 1) {
+      // Envia alerta de stock baixo para o Telegram
+      await enviarAlertaTelegram(`⚠️ ALERTA DESPENSA: O item *${itemName}* está a ACABAR (Resta apenas 1 unidade).`);
     }
 
     carregarDados();
@@ -463,69 +485,76 @@ export default function Home() {
               </div>
             )}
 
-            {/* INVENTÁRIO ATUAL: Responsivo (Cartões limpos no Telemóvel / Tabela completa no PC) */}
+            {/* INVENTÁRIO ATUAL */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl">
               <h2 className="text-xl font-bold text-emerald-400 mb-4">Inventário Atual</h2>
               
-              {/* VISTA DE TELEMÓVEL (<768px): Nome, Qtd, Consumir, Editar, Excluir + Botão de Expandir Detalhes */}
-              <div className="block md:hidden space-y-3">
+              {/* VISTA DE TELEMÓVEL (<768px): Em apenas uma linha + Expansão */}
+              <div className="block md:hidden space-y-2.5">
                 {inventario.map(prod => {
                   const isExpanded = expandedItems[prod.id];
+                  const isCritical = prod.quantidade <= 1; // Destaca em vermelho se <= 1
+
                   return (
-                    <div key={prod.id} className="bg-slate-950 border border-slate-800/80 rounded-xl p-4 shadow">
-                      <div className="flex justify-between items-start gap-2">
-                        <div>
-                          <h3 className="font-semibold text-slate-100 text-base">{prod.item}</h3>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-300">Qtd: <b>{prod.quantidade}</b></span>
-                            {prod.quantidade === 0 && <span className="text-xs bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Acabou</span>}
-                            {prod.quantidade === 1 && <span className="text-xs bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Acabando</span>}
-                          </div>
+                    <div 
+                      key={prod.id} 
+                      className={`border rounded-xl p-3 shadow transition ${
+                        isCritical 
+                          ? 'bg-red-950/40 border-red-800 text-red-100' 
+                          : 'bg-slate-950 border-slate-800/80 text-slate-100'
+                      }`}
+                    >
+                      {/* Linha Principal Única no Telemóvel */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className="font-semibold text-sm truncate">{prod.item}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded font-bold shrink-0 ${isCritical ? 'bg-red-900 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                            x{prod.quantidade}
+                          </span>
                         </div>
 
-                        {/* Botões de Ação Principais no Telemóvel */}
-                        <div className="flex items-center gap-1">
+                        {/* Botões de Ação na Mesma Linha */}
+                        <div className="flex items-center gap-1 shrink-0">
                           <button 
                             onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
-                            className="bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+                            className="bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2 py-1 rounded-lg text-xs font-medium"
                             title="Consumir 1"
                           >
                             -1
                           </button>
                           <button 
                             onClick={() => iniciarEdicao(prod)}
-                            className="bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-800 p-2 rounded-lg text-xs font-medium"
+                            className="bg-blue-950/80 hover:bg-blue-900 text-blue-300 border border-blue-800 p-1.5 rounded-lg text-xs"
                             title="Editar"
                           >
                             ✏️
                           </button>
                           <button 
                             onClick={() => excluirItem(prod.id, prod.item)}
-                            className="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 p-2 rounded-lg text-xs font-medium"
+                            className="bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800 p-1.5 rounded-lg text-xs"
                             title="Excluir"
                           >
                             🗑️
+                          </button>
+                          <button 
+                            onClick={() => toggleExpand(prod.id)}
+                            className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-1.5 rounded-lg text-xs font-bold"
+                            title="Ver Detalhes"
+                          >
+                            {isExpanded ? '▲' : '▼'}
                           </button>
                         </div>
                       </div>
 
                       {/* Secção Expandida com Detalhes */}
                       {isExpanded && (
-                        <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-400 space-y-1.5 animate-fadeIn">
-                          <p>📅 Validade: <span className="text-slate-200">{prod.validade || 'Sem data'}</span></p>
-                          <p>💰 Preço Unitário: <span className="text-slate-200">R$ {Number(prod.preco_unitario || 0).toFixed(2)}</span></p>
-                          <p>🏷️ Categoria: <span className="text-slate-200">{prod.categoria || 'Mercearia'}</span></p>
-                          <p>📍 Local: <span className="text-slate-200">{prod.local || 'Armário'}</span></p>
+                        <div className="mt-3 pt-2.5 border-t border-slate-800/80 text-xs text-slate-300 space-y-1 animate-fadeIn">
+                          <p>📅 Validade: <span className="text-slate-100">{prod.validade || 'Sem data'}</span></p>
+                          <p>💰 Preço Unitário: <span className="text-slate-100">R$ {Number(prod.preco_unitario || 0).toFixed(2)}</span></p>
+                          <p>🏷️ Categoria: <span className="text-slate-100">{prod.categoria || 'Mercearia'}</span></p>
+                          <p>📍 Local: <span className="text-slate-100">{prod.local || 'Armário'}</span></p>
                         </div>
                       )}
-
-                      {/* Botão de Expansão */}
-                      <button 
-                        onClick={() => toggleExpand(prod.id)}
-                        className="w-full mt-3 pt-2 border-t border-slate-900 text-center text-xs text-emerald-400 hover:text-emerald-300 font-medium flex items-center justify-center gap-1"
-                      >
-                        {isExpanded ? '▲ Ocultar Detalhes' : '▼ Ver Todos os Detalhes'}
-                      </button>
                     </div>
                   );
                 })}
@@ -534,7 +563,7 @@ export default function Home() {
                 )}
               </div>
 
-              {/* VISTA DE PC (≥768px): Tabela Tradicional Completa */}
+              {/* VISTA DE PC (≥768px): Tabela Completa */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
@@ -547,41 +576,44 @@ export default function Home() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
-                    {inventario.map(prod => (
-                      <tr key={prod.id} className="hover:bg-slate-800/30">
-                        <td className="py-3.5 font-medium">
-                          {prod.item}
-                          {prod.quantidade === 0 && <span className="ml-2 text-xs bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Acabou</span>}
-                          {prod.quantidade === 1 && <span className="ml-2 text-xs bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Acabando</span>}
-                        </td>
-                        <td className="py-3.5 text-center font-bold">{prod.quantidade}</td>
-                        <td className="py-3.5 text-xs text-slate-400">{prod.validade || 'Sem data'}</td>
-                        <td className="py-3.5 text-slate-300">R$ {Number(prod.preco_unitario || 0).toFixed(2)}</td>
-                        <td className="py-3.5 text-right space-x-1.5">
-                          <button 
-                            onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
-                            className="bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
-                            title="Consumir 1 unidade"
-                          >
-                            -1
-                          </button>
-                          <button 
-                            onClick={() => iniciarEdicao(prod)}
-                            className="bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
-                            title="Editar item"
-                          >
-                            ✏️ Editar
-                          </button>
-                          <button 
-                            onClick={() => excluirItem(prod.id, prod.item)}
-                            className="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
-                            title="Excluir item"
-                          >
-                            🗑️
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {inventario.map(prod => {
+                      const isCritical = prod.quantidade <= 1;
+                      return (
+                        <tr key={prod.id} className={`hover:bg-slate-800/30 ${isCritical ? 'bg-red-950/20 text-red-200' : ''}`}>
+                          <td className="py-3.5 font-medium">
+                            {prod.item}
+                            {prod.quantidade === 0 && <span className="ml-2 text-xs bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Acabou</span>}
+                            {prod.quantidade === 1 && <span className="ml-2 text-xs bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Acabando</span>}
+                          </td>
+                          <td className="py-3.5 text-center font-bold">{prod.quantidade}</td>
+                          <td className="py-3.5 text-xs text-slate-400">{prod.validade || 'Sem data'}</td>
+                          <td className="py-3.5 text-slate-300">R$ {Number(prod.preco_unitario || 0).toFixed(2)}</td>
+                          <td className="py-3.5 text-right space-x-1.5">
+                            <button 
+                              onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
+                              className="bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                              title="Consumir 1 unidade"
+                            >
+                              -1
+                            </button>
+                            <button 
+                              onClick={() => iniciarEdicao(prod)}
+                              className="bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                              title="Editar item"
+                            >
+                              ✏️ Editar
+                            </button>
+                            <button 
+                              onClick={() => excluirItem(prod.id, prod.item)}
+                              className="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                              title="Excluir item"
+                            >
+                              🗑️
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {inventario.length === 0 && (
                       <tr>
                         <td colSpan={5} className="py-8 text-center text-slate-500 text-sm">Nenhum item registado na despensa.</td>
