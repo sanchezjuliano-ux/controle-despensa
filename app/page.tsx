@@ -24,9 +24,19 @@ export default function Home() {
   const [precosAtuais, setPrecosAtuais] = useState<{ [key: string]: string }>({});
   const [quantidadesCompra, setQuantidadesCompra] = useState<{ [key: string]: number }>({});
 
+  // Listas dinâmicas de Categoria e Local para suportar novos registos salvos
+  const [categoriasList, setCategoriasList] = useState<string[]>(['Mercearia', 'Limpeza', 'Higiene', 'Bebidas', 'Outros']);
+  const [locaisList, setLocaisList] = useState<string[]>(['Armário', 'Frigorífico', 'Despensa', 'Área de Serviço']);
+
+  // Estados auxiliares para inputs personalizados de Novo Local / Categoria
+  const [modoNovoCategoria, setModoNovoCategoria] = useState(false);
+  const [novoCategoriaInput, setNovoCategoriaInput] = useState('');
+  const [modoNovoLocal, setModoNovoLocal] = useState(false);
+  const [novoLocalInput, setNovoLocalInput] = useState('');
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [item, setItem] = useState('');
-  const [quantidade, setQuantidade] = useState(1);
+  const [quantidade, setQuantidade] = useState<string | number>(1);
   const [validade, setValidade] = useState('');
   const [categoria, setCategoria] = useState('Mercearia');
   const [local, setLocal] = useState('Armário');
@@ -44,7 +54,18 @@ export default function Home() {
 
   async function carregarDados() {
     const { data: despensaData } = await supabase.from('despensa').select('*').order('item', { ascending: true });
-    if (despensaData) setInventario(despensaData);
+    if (despensaData) {
+      setInventario(despensaData);
+      // Extrai dinamicamente categorias e locais já existentes na base de dados para enriquecer os selects
+      const catsSet = new Set<string>(['Mercearia', 'Limpeza', 'Higiene', 'Bebidas', 'Outros']);
+      const locsSet = new Set<string>(['Armário', 'Frigorífico', 'Despensa', 'Área de Serviço']);
+      despensaData.forEach((d: any) => {
+        if (d.categoria) catsSet.add(d.categoria);
+        if (d.local) locsSet.add(d.local);
+      });
+      setCategoriasList(Array.from(catsSet));
+      setLocaisList(Array.from(locsSet));
+    }
 
     const { data: comprasData } = await supabase.from('lista_compras').select('*').order('id', { ascending: false });
     if (comprasData) {
@@ -277,7 +298,12 @@ export default function Home() {
         setItem(json.data.item || '');
         setPreco(json.data.preco ? json.data.preco.toString() : '');
         setQuantidade(json.data.quantidade || 1);
-        if (json.data.categoria) setCategoria(json.data.categoria);
+        if (json.data.categoria) {
+          if (!categoriasList.includes(json.data.categoria)) {
+            setCategoriasList(prev => [...prev, json.data.categoria]);
+          }
+          setCategoria(json.data.categoria);
+        }
         setMostrarFormulario(true);
         alert('✨ Etiqueta lida com sucesso!');
       } else {
@@ -327,6 +353,23 @@ export default function Home() {
     e.preventDefault();
     if (!item.trim()) return alert('Insere o nome do item.');
 
+    // Trata categoria e local personalizados se o utilizador adicionou novos
+    let categoriaFinal = categoria;
+    if (modoNovoCategoria && novoCategoriaInput.trim()) {
+      categoriaFinal = novoCategoriaInput.trim();
+      if (!categoriasList.includes(categoriaFinal)) {
+        setCategoriasList(prev => [...prev, categoriaFinal]);
+      }
+    }
+
+    let localFinal = local;
+    if (modoNovoLocal && novoLocalInput.trim()) {
+      localFinal = novoLocalInput.trim();
+      if (!locaisList.includes(localFinal)) {
+        setLocaisList(prev => [...prev, localFinal]);
+      }
+    }
+
     const precoNum = preco ? parseFloat(preco) : 0;
     const qtdNum = intToNumber(quantidade);
     const precoUnit = precoNum / qtdNum;
@@ -336,8 +379,8 @@ export default function Home() {
         item,
         quantidade: qtdNum,
         validade: validade || null,
-        categoria,
-        local,
+        categoria: categoriaFinal,
+        local: localFinal,
         preco_unitario: precoUnit
       }).eq('id', editingId);
 
@@ -350,15 +393,17 @@ export default function Home() {
         await supabase.from('despensa').update({
           quantidade: atual.quantidade + qtdNum,
           preco_unitario: precoUnit,
-          validade: validade || atual.validade
+          validade: validade || atual.validade,
+          categoria: categoriaFinal,
+          local: localFinal
         }).eq('id', atual.id);
       } else {
         await supabase.from('despensa').insert([{
           item,
           quantidade: qtdNum,
           validade: validade || null,
-          categoria,
-          local,
+          categoria: categoriaFinal,
+          local: localFinal,
           preco_unitario: precoUnit
         }]);
       }
@@ -384,6 +429,10 @@ export default function Home() {
     setPreco('');
     setLoja('');
     setPagamento('');
+    setModoNovoCategoria(false);
+    setNovoCategoriaInput('');
+    setModoNovoLocal(false);
+    setNovoLocalInput('');
     setMostrarFormulario(false);
     carregarDados();
   }
@@ -393,9 +442,17 @@ export default function Home() {
     setItem(prod.item || '');
     setQuantidade(prod.quantidade || 1);
     setValidade(prod.validade || '');
+    if (prod.categoria && !categoriasList.includes(prod.categoria)) {
+      setCategoriasList(prev => [...prev, prod.categoria]);
+    }
     setCategoria(prod.categoria || 'Mercearia');
+    if (prod.local && !locaisList.includes(prod.local)) {
+      setLocaisList(prev => [...prev, prod.local]);
+    }
     setLocal(prod.local || 'Armário');
     setPreco(prod.preco_unitario ? (prod.preco_unitario * prod.quantidade).toFixed(2) : '');
+    setModoNovoCategoria(false);
+    setModoNovoLocal(false);
     setMostrarFormulario(true);
   }
 
@@ -520,6 +577,8 @@ export default function Home() {
                   setQuantidade(1);
                   setValidade('');
                   setPreco('');
+                  setModoNovoCategoria(false);
+                  setModoNovoLocal(false);
                   setMostrarFormulario(!mostrarFormulario);
                 }}
                 className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 shadow"
@@ -571,7 +630,7 @@ export default function Home() {
                     <input 
                       type="number" 
                       value={quantidade} 
-                      onChange={e => setQuantidade(intToNumber(e.target.value))} 
+                      onChange={e => setQuantidade(e.target.value)} 
                       min="1" 
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
                       required 
@@ -600,33 +659,102 @@ export default function Home() {
                     />
                   </div>
 
+                  {/* CATEGORIA COM SUPORTE A NOVO REGISTO */}
                   <div>
                     <label className="block text-xs text-slate-400 mb-1">Categoria</label>
-                    <select 
-                      value={categoria} 
-                      onChange={e => setCategoria(e.target.value)} 
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
-                    >
-                      <option value="Mercearia">Mercearia</option>
-                      <option value="Limpeza">Limpeza</option>
-                      <option value="Higiene">Higiene</option>
-                      <option value="Bebidas">Bebidas</option>
-                      <option value="Outros">Outros</option>
-                    </select>
+                    {!modoNovoCategoria ? (
+                      <select 
+                        value={categoria} 
+                        onChange={e => {
+                          if (e.target.value === '___novo___') {
+                            setModoNovoCategoria(true);
+                          } else {
+                            setCategoria(e.target.value);
+                          }
+                        }} 
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
+                      >
+                        {categoriasList.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                        <option value="___novo___" className="text-emerald-400 font-bold">+ Adicionar nova categoria...</option>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          value={novoCategoriaInput} 
+                          onChange={e => setNovoCategoriaInput(e.target.value)}
+                          placeholder="Nome da nova categoria"
+                          className="w-full bg-slate-950 border border-emerald-500 rounded-xl p-3 text-sm outline-none text-slate-100"
+                          autoFocus
+                        />
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            if (novoCategoriaInput.trim()) {
+                              const novaCat = novoCategoriaInput.trim();
+                              if (!categoriasList.includes(novaCat)) setCategoriasList([...categoriasList, novaCat]);
+                              setCategoria(novaCat);
+                            }
+                            setModoNovoCategoria(false);
+                            setNovoCategoriaInput('');
+                          }}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 rounded-xl text-xs font-bold"
+                        >
+                          OK
+                        </button>
+                      </div>
+                    )}
                   </div>
 
+                  {/* LOCAL COM SUPORTE A NOVO REGISTO */}
                   <div>
                     <label className="block text-xs text-slate-400 mb-1">Local</label>
-                    <select 
-                      value={local} 
-                      onChange={e => setLocal(e.target.value)} 
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
-                    >
-                      <option value="Armário">Armário</option>
-                      <option value="Frigorífico">Frigorífico</option>
-                      <option value="Despensa">Despensa</option>
-                      <option value="Área de Serviço">Área de Serviço</option>
-                    </select>
+                    {!modoNovoLocal ? (
+                      <select 
+                        value={local} 
+                        onChange={e => {
+                          if (e.target.value === '___novo___') {
+                            setModoNovoLocal(true);
+                          } else {
+                            setLocal(e.target.value);
+                          }
+                        }} 
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
+                      >
+                        {locaisList.map(loc => (
+                          <option key={loc} value={loc}>{loc}</option>
+                        ))}
+                        <option value="___novo___" className="text-emerald-400 font-bold">+ Adicionar novo local...</option>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          value={novoLocalInput} 
+                          onChange={e => setNovoLocalInput(e.target.value)}
+                          placeholder="Nome do novo local"
+                          className="w-full bg-slate-950 border border-emerald-500 rounded-xl p-3 text-sm outline-none text-slate-100"
+                          autoFocus
+                        />
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            if (novoLocalInput.trim()) {
+                              const novoLoc = novoLocalInput.trim();
+                              if (!locaisList.includes(novoLoc)) setLocaisList([...locaisList, novoLoc]);
+                              setLocal(novoLoc);
+                            }
+                            setModoNovoLocal(false);
+                            setNovoLocalInput('');
+                          }}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 rounded-xl text-xs font-bold"
+                        >
+                          OK
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {!editingId && (
@@ -896,7 +1024,6 @@ export default function Home() {
               
               <div className="space-y-3">
                 {listaComprasFiltrada.map(c => {
-                  // CORREÇÃO: Utilizando corretamente 'mediaPreco' (e não 'media')
                   const { menor, mediaPreco } = analisarItem(c.item, 0);
                   const precoAtualVal = precosAtuais[c.id] || '';
                   const qtdComprarVal = quantidadesCompra[c.id] !== undefined ? quantidadesCompra[c.id] : calcularSugestaoCompra(c.item);
