@@ -24,11 +24,9 @@ export default function Home() {
   const [precosAtuais, setPrecosAtuais] = useState<{ [key: string]: string }>({});
   const [quantidadesCompra, setQuantidadesCompra] = useState<{ [key: string]: number }>({});
 
-  // Listas dinâmicas de Categoria e Local para suportar novos registos salvos
   const [categoriasList, setCategoriasList] = useState<string[]>(['Mercearia', 'Limpeza', 'Higiene', 'Bebidas', 'Outros']);
   const [locaisList, setLocaisList] = useState<string[]>(['Armário', 'Frigorífico', 'Despensa', 'Área de Serviço']);
 
-  // Estados auxiliares para inputs personalizados de Novo Local / Categoria
   const [modoNovoCategoria, setModoNovoCategoria] = useState(false);
   const [novoCategoriaInput, setNovoCategoriaInput] = useState('');
   const [modoNovoLocal, setModoNovoLocal] = useState(false);
@@ -56,7 +54,6 @@ export default function Home() {
     const { data: despensaData } = await supabase.from('despensa').select('*').order('item', { ascending: true });
     if (despensaData) {
       setInventario(despensaData);
-      // Extrai dinamicamente categorias e locais já existentes na base de dados para enriquecer os selects
       const catsSet = new Set<string>(['Mercearia', 'Limpeza', 'Higiene', 'Bebidas', 'Outros']);
       const locsSet = new Set<string>(['Armário', 'Frigorífico', 'Despensa', 'Área de Serviço']);
       despensaData.forEach((d: any) => {
@@ -353,7 +350,6 @@ export default function Home() {
     e.preventDefault();
     if (!item.trim()) return alert('Insere o nome do item.');
 
-    // Trata categoria e local personalizados se o utilizador adicionou novos
     let categoriaFinal = categoria;
     if (modoNovoCategoria && novoCategoriaInput.trim()) {
       categoriaFinal = novoCategoriaInput.trim();
@@ -565,7 +561,6 @@ export default function Home() {
 
       <main className="flex-1 p-4 md:p-8 overflow-y-auto max-w-5xl">
         
-        {/* GUIA 1: DESPENSA */}
         {activeTab === 'despensa' && (
           <div className="space-y-6">
             
@@ -659,9 +654,27 @@ export default function Home() {
                     />
                   </div>
 
-                  {/* CATEGORIA COM SUPORTE A NOVO REGISTO */}
+                  {/* CATEGORIA COM BOTÃO DE EXCLUSÃO */}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">Categoria</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs text-slate-400">Categoria</label>
+                      {categoriasList.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Queres eliminar a categoria "${categoria}" da lista?`)) {
+                              const novasCats = categoriasList.filter(c => c !== categoria);
+                              setCategoriasList(novasCats);
+                              setCategoria(novasCats[0] || 'Mercearia');
+                            }
+                          }}
+                          className="text-[11px] text-red-400 hover:text-red-300 font-medium"
+                          title="Excluir categoria selecionada"
+                        >
+                          🗑️ Excluir categoria
+                        </button>
+                      )}
+                    </div>
                     {!modoNovoCategoria ? (
                       <select 
                         value={categoria} 
@@ -708,9 +721,27 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* LOCAL COM SUPORTE A NOVO REGISTO */}
+                  {/* LOCAL COM BOTÃO DE EXCLUSÃO */}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">Local</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs text-slate-400">Local</label>
+                      {locaisList.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Queres eliminar o local "${local}" da lista?`)) {
+                              const novosLocais = locaisList.filter(l => l !== local);
+                              setLocaisList(novosLocais);
+                              setLocal(novosLocais[0] || 'Armário');
+                            }
+                          }}
+                          className="text-[11px] text-red-400 hover:text-red-300 font-medium"
+                          title="Excluir local selecionado"
+                        >
+                          🗑️ Excluir local
+                        </button>
+                      )}
+                    </div>
                     {!modoNovoLocal ? (
                       <select 
                         value={local} 
@@ -788,378 +819,4 @@ export default function Home() {
                       type="submit" 
                       className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3.5 rounded-xl text-sm transition shadow-lg shadow-emerald-950"
                     >
-                      {editingId ? 'Salvar Alterações' : 'Guardar no Stock'}
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => setMostrarFormulario(false)}
-                      className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-5 py-3.5 rounded-xl text-sm transition"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
-                <h2 className="text-xl font-bold text-emerald-400">Inventário Atual</h2>
-                <div className="w-full sm:w-72">
-                  <input 
-                    type="text" 
-                    value={buscaDespensa} 
-                    onChange={e => setBuscaDespensa(e.target.value)}
-                    placeholder="🔍 Pesquisar na despensa..." 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs focus:border-emerald-500 outline-none text-slate-200"
-                  />
-                </div>
-              </div>
-              
-              <div className="block md:hidden space-y-2.5">
-                {inventarioFiltrado.map(prod => {
-                  const isExpanded = expandedItems[prod.id];
-                  const isEsgotado = prod.quantidade === 0;
-                  const stats = analisarItem(prod.item, prod.quantidade);
-
-                  let alertaValidade = false;
-                  if (prod.validade) {
-                    const diffDiasValidade = Math.ceil((new Date(prod.validade).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                    if (diffDiasValidade <= 7 && diffDiasValidade >= 0) alertaValidade = true;
-                  }
-
-                  return (
-                    <div 
-                      key={prod.id} 
-                      className={`border rounded-xl p-3 shadow transition ${
-                        isEsgotado 
-                          ? 'bg-red-950/40 border-red-800 text-red-100' 
-                          : alertaValidade 
-                          ? 'bg-amber-950/40 border-amber-800 text-amber-100'
-                          : 'bg-slate-950 border-slate-800/80 text-slate-100'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className="font-semibold text-sm truncate">{prod.item}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded font-bold shrink-0 ${isEsgotado ? 'bg-red-900 text-white' : 'bg-slate-800 text-slate-300'}`}>
-                            x{prod.quantidade}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button 
-                            onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
-                            className="bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2 py-1 rounded-lg text-xs font-medium"
-                            title="Consumir 1"
-                          >
-                            -1
-                          </button>
-                          <button 
-                            onClick={() => iniciarEdicao(prod)}
-                            className="bg-blue-950/80 hover:bg-blue-900 text-blue-300 border border-blue-800 p-1.5 rounded-lg text-xs"
-                            title="Editar"
-                          >
-                            ✏️
-                          </button>
-                          <button 
-                            onClick={() => excluirItem(prod.id, prod.item)}
-                            className="bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800 p-1.5 rounded-lg text-xs"
-                            title="Excluir"
-                          >
-                            🗑️
-                          </button>
-                          <button 
-                            onClick={() => toggleExpand(prod.id)}
-                            className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-1.5 rounded-lg text-xs font-bold"
-                            title="Ver Detalhes"
-                          >
-                            {isExpanded ? '▲' : '▼'}
-                          </button>
-                        </div>
-                      </div>
-
-                      {isExpanded && (
-                        <div className="mt-3 pt-2.5 border-t border-slate-800/80 text-xs text-slate-300 space-y-1.5 animate-fadeIn">
-                          <p>📅 Validade: <span className={alertaValidade ? 'text-amber-400 font-bold' : 'text-slate-100'}>{prod.validade || 'Sem data'} {alertaValidade && '⚠️ Vence em breve!'}</span></p>
-                          <p>💰 Preço Unitário: <span className="text-slate-100">{Number(prod.preco_unitario || 0).toFixed(2)}</span></p>
-                          <p>⏳ Consumo Médio: <span className="text-emerald-400 font-medium">{stats.mediaDiasConsumo > 0 ? `Dura aprox. ${stats.mediaDiasConsumo} dias` : 'Calculando...'}</span></p>
-                          <p>🔮 Previsão de Término: <span className="text-amber-400 font-medium">{stats.dataTerminoFmt}</span></p>
-                          <p>🏷️ Categoria: <span className="text-slate-100">{prod.categoria || 'Mercearia'}</span></p>
-                          <p>📍 Local: <span className="text-slate-100">{prod.local || 'Armário'}</span></p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                {inventarioFiltrado.length === 0 && (
-                  <p className="py-8 text-center text-slate-500 text-sm">Nenhum item encontrado.</p>
-                )}
-              </div>
-
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-slate-400 text-xs">
-                      <th className="pb-3">Item</th>
-                      <th className="pb-3 text-center">Qtd</th>
-                      <th className="pb-3">Validade</th>
-                      <th className="pb-3">Consumo / Término</th>
-                      <th className="pb-3">Preço Un.</th>
-                      <th className="pb-3 text-right">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/50">
-                    {inventarioFiltrado.map(prod => {
-                      const isEsgotado = prod.quantidade === 0;
-                      const stats = analisarItem(prod.item, prod.quantidade);
-                      let alertaValidade = false;
-                      if (prod.validade) {
-                        const diffDiasValidade = Math.ceil((new Date(prod.validade).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                        if (diffDiasValidade <= 7 && diffDiasValidade >= 0) alertaValidade = true;
-                      }
-
-                      return (
-                        <tr key={prod.id} className={`hover:bg-slate-800/30 ${isEsgotado ? 'bg-red-950/20 text-red-200' : alertaValidade ? 'bg-amber-950/20 text-amber-200' : ''}`}>
-                          <td className="py-3.5 font-medium">
-                            {prod.item}
-                            {prod.quantidade === 0 && <span className="ml-2 text-xs bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Acabou</span>}
-                            {prod.quantidade === 1 && <span className="ml-2 text-xs bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Acabando</span>}
-                          </td>
-                          <td className="py-3.5 text-center font-bold">{prod.quantidade}</td>
-                          <td className="py-3.5 text-xs text-slate-400">
-                            {prod.validade || 'Sem data'}
-                            {alertaValidade && <span className="block text-[10px] text-amber-400 font-bold">⚠️ Vence em breve</span>}
-                          </td>
-                          <td className="py-3.5 text-xs text-slate-300">
-                            <span className="block text-emerald-400">{stats.mediaDiasConsumo > 0 ? `${stats.mediaDiasConsumo} dias/ciclo` : '-'}</span>
-                            <span className="block text-[10px] text-slate-400">Acaba em: {stats.dataTerminoFmt}</span>
-                          </td>
-                          <td className="py-3.5 text-slate-300">{Number(prod.preco_unitario || 0).toFixed(2)}</td>
-                          <td className="py-3.5 text-right space-x-1.5">
-                            <button 
-                              onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
-                              className="bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
-                              title="Consumir 1 unidade"
-                            >
-                              -1
-                            </button>
-                            <button 
-                              onClick={() => iniciarEdicao(prod)}
-                              className="bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
-                              title="Editar item"
-                            >
-                              ✏️ Editar
-                            </button>
-                            <button 
-                              onClick={() => excluirItem(prod.id, prod.item)}
-                              className="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
-                              title="Excluir item"
-                            >
-                              🗑️
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {inventarioFiltrado.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="py-8 text-center text-slate-500 text-sm">Nenhum item encontrado.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-            </div>
-          </div>
-        )}
-
-        {/* GUIA 2: LISTA DE COMPRAS */}
-        {activeTab === 'compras' && (
-          <div className="space-y-6">
-            <input 
-              type="file" 
-              accept="image/*" 
-              capture="environment" 
-              ref={comprasFileInputRef} 
-              onChange={(e) => comprasFileId && handleAnalisarEtiquetaCompras(e, comprasFileId)} 
-              className="hidden" 
-            />
-
-            <div className="bg-gradient-to-r from-amber-950/80 to-slate-900 border border-amber-800/80 rounded-2xl p-4 md:p-6 shadow-xl flex flex-col sm:flex-row justify-between items-center gap-4">
-              <div>
-                <p className="text-xs text-amber-400 font-semibold uppercase tracking-wider">Calculadora do Carrinho</p>
-                <h3 className="text-2xl md:text-3xl font-bold text-slate-100 mt-0.5">
-                  R$ {totalCalculadoraCompras.toFixed(2)}
-                </h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  {listaCompras.length} {listaCompras.length === 1 ? 'item pendente' : 'itens pendentes'}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={finalizarCompra}
-                disabled={loadingIA || totalCalculadoraCompras === 0}
-                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-950 transition flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                <span>{loadingIA ? '⏳ A processar...' : '✅ Finalizar Compra'}</span>
-              </button>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
-                <h2 className="text-xl font-bold text-amber-400">🛒 Lista de Compras (Itens Esgotados)</h2>
-                <div className="w-full sm:w-72">
-                  <input 
-                    type="text" 
-                    value={buscaCompras} 
-                    onChange={e => setBuscaCompras(e.target.value)}
-                    placeholder="🔍 Pesquisar nas compras..." 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs focus:border-amber-500 outline-none text-slate-200"
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-3">
-                {listaComprasFiltrada.map(c => {
-                  const { menor, mediaPreco } = analisarItem(c.item, 0);
-                  const precoAtualVal = precosAtuais[c.id] || '';
-                  const qtdComprarVal = quantidadesCompra[c.id] !== undefined ? quantidadesCompra[c.id] : calcularSugestaoCompra(c.item);
-
-                  return (
-                    <div key={c.id} className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl space-y-2.5 shadow">
-                      
-                      <div className="flex justify-between items-center">
-                        <span className="font-semibold text-sm text-slate-100 truncate pr-2">❌ {c.item}</span>
-                        <span className="text-[10px] text-amber-500 bg-amber-950/40 border border-amber-900 px-2.5 py-0.5 rounded-full font-medium shrink-0">Pendente</span>
-                      </div>
-
-                      <div className="grid grid-cols-[1fr_1fr_80px_55px_42px] gap-1.5 items-center">
-                        
-                        <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center min-w-0">
-                          <span className="block text-[9px] text-slate-400 uppercase tracking-wider">Menor</span>
-                          <span className="font-bold text-emerald-400 text-xs truncate block">
-                            {menor > 0 ? menor.toFixed(2) : '0.00'}
-                          </span>
-                        </div>
-
-                        <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center min-w-0">
-                          <span className="block text-[9px] text-slate-400 uppercase tracking-wider">Médio</span>
-                          <span className="font-bold text-blue-400 text-xs truncate block">
-                            {mediaPreco > 0 ? mediaPreco.toFixed(2) : '0.00'}
-                          </span>
-                        </div>
-
-                        <div className="relative">
-                          <span className="absolute left-1.5 top-2 text-[9px] text-slate-400">R$</span>
-                          <input 
-                            type="number" 
-                            step="0.01" 
-                            value={precoAtualVal} 
-                            onChange={(e) => setPrecosAtuais({ ...precosAtuais, [c.id]: e.target.value })}
-                            placeholder="Atual" 
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-slate-200 text-center font-bold"
-                            title="Preço Atual"
-                          />
-                        </div>
-
-                        <div className="relative">
-                          <span className="absolute left-1 top-2 text-[9px] text-slate-400">Qtd</span>
-                          <input 
-                            type="number" 
-                            min="1"
-                            value={qtdComprarVal} 
-                            onChange={(e) => setQuantidadesCompra({ ...quantidadesCompra, [c.id]: intToNumber(e.target.value) })}
-                            placeholder="Qtd" 
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-amber-300 text-center font-bold"
-                            title="Quantidade a Comprar"
-                          />
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setComprasFileId(c.id);
-                            comprasFileInputRef.current?.click();
-                          }}
-                          disabled={loadingIA}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 px-1 rounded-lg text-[11px] font-semibold flex items-center justify-center shadow transition disabled:opacity-50 h-[31px]"
-                          title="Ler etiqueta de preço com IA"
-                        >
-                          {loadingIA && comprasFileId === c.id ? '⏳' : '📸'}
-                        </button>
-
-                      </div>
-
-                    </div>
-                  );
-                })}
-
-                {listaComprasFiltrada.length === 0 && (
-                  <p className="text-slate-500 text-sm text-center py-10">Nenhum item encontrado.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* GUIA 3: HISTÓRICO */}
-        {activeTab === 'historico' && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
-              <h2 className="text-xl font-bold text-teal-400">📊 Histórico de Movimentações</h2>
-              <div className="w-full sm:w-72">
-                <input 
-                  type="text" 
-                  value={buscaHistorico} 
-                  onChange={e => setBuscaHistorico(e.target.value)}
-                  placeholder="🔍 Pesquisar no histórico..." 
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs focus:border-teal-500 outline-none text-slate-200"
-                />
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 text-xs">
-                    <th className="pb-3">Data</th>
-                    <th className="pb-3">Item</th>
-                    <th className="pb-3">Tipo</th>
-                    <th className="pb-3 text-center">Qtd</th>
-                    <th className="pb-3">Loja</th>
-                    <th className="pb-3">Responsável</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/50">
-                  {historicoFiltrado.map(h => (
-                    <tr key={h.id} className="hover:bg-slate-800/30">
-                      <td className="py-3 text-xs text-slate-400">{new Date(h.created_at).toLocaleString('pt-BR')}</td>
-                      <td className="py-3 font-medium text-slate-200">{h.item}</td>
-                      <td className="py-3">
-                        <span className={`text-xs px-2.5 py-1 rounded-full border ${h.tipo_movimento === 'entrada' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-red-950 text-red-400 border-red-800'}`}>
-                          {h.tipo_movimento}
-                        </span>
-                      </td>
-                      <td className="py-3 text-center font-bold">{h.quantidade}</td>
-                      <td className="py-3 text-xs text-slate-400">{h.loja || '-'}</td>
-                      <td className="py-3 text-xs text-slate-400">{h.responsavel || '-'}</td>
-                    </tr>
-                  ))}
-                  {historicoFiltrado.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-500 text-sm">Nenhum registo encontrado.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-      </main>
-    </div>
-  );
-}
+                      {editingId ? 'Sal
