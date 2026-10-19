@@ -248,54 +248,11 @@ async function processarOrdem(ctx, texto) {
   }
 }
 
-bot.on('text', async (ctx) => {
-  const texto = ctx.message.text;
-  if (texto.startsWith('/')) return;
-  await processarOrdem(ctx, texto);
-});
-
-bot.on('voice', async (ctx) => {
-  try {
-    await ctx.reply("🎙️ Áudio recebido. A transcrever a ordem...");
-    const fileLink = await ctx.telegram.getFileLink(ctx.message.voice.file_id);
-    const response = await fetch(fileLink.href);
-    const buffer = await response.arrayBuffer();
-    const base64Audio = Buffer.from(buffer).toString("base64");
-
-    const audioPart = {
-      inlineData: {
-        data: base64Audio,
-        mimeType: ctx.message.voice.mime_type || "audio/ogg",
-      },
-    };
-
-    const promptTranscricao = "Transcreve exatamente o que foi dito neste áudio. Devolve APENAS o texto puro, sem aspas, sem asteriscos e sem explicações.";
-    let transcricaoResult;
-    try {
-      transcricaoResult = await model.generateContent([promptTranscricao, audioPart]);
-      if (!transcricaoResult || !transcricaoResult.response || !transcricaoResult.response.text()) {
-        throw new Error("Transcrição vazia.");
-      }
-    } catch (aiError) {
-      console.error("ERRO IA (Áudio) - TAREFA CANCELADA:", aiError.message);
-      return ctx.reply("❌ Tarefa cancelada: falha ao transcrever o áudio. Tenta gravar de novo.");
-    }
-
-    const textoTranscrito = transcricaoResult.response.text().trim();
-    await ctx.reply(`✅ Transcrição: "${textoTranscrito}"\n⚙️ A executar...`);
-    await processarOrdem(ctx, textoTranscrito);
-  } catch (error) {
-    console.error("Erro no processamento de áudio - TAREFA CANCELADA:", error);
-    ctx.reply("❌ Tarefa cancelada devido a um erro crítico no áudio.");
-  }
-});
-
 bot.on('photo', async (ctx) => {
   try {
-    await ctx.reply("📸 Foto recebida. A analisar etiqueta e quantidade...");
+    await ctx.reply("📸 Foto recebida. A analisar talão/etiqueta...");
     const fotos = ctx.message.photo;
     const maiorFoto = fotos[fotos.length - 1];
-    
     const legenda = ctx.message.caption || "1";
     
     const fileLink = await ctx.telegram.getFileLink(maiorFoto.file_id);
@@ -310,25 +267,57 @@ bot.on('photo', async (ctx) => {
       },
     };
 
-    const promptFoto = `Analisa esta imagem de uma etiqueta de preço ou produto. O utilizador especificou a quantidade de unidades compradas como: "${legenda}". Extrai o nome do produto, o preço unitário e utiliza obrigatoriamente essa quantidade informada. Devolve estritamente no formato: Comprei ${legenda} unidade(s) de [nome do produto] por [preço] reais na loja [nome do mercado se visível, senão 'Supermercado'].`;
+    const promptFoto = `Analisa esta imagem de talão ou etiqueta. Extrai os dados e devolve APENAS um JSON válido no formato: [{"item": "Nome do Produto", "quantidade": ${legenda}, "preco": 0.00, "loja": "Nome do Mercado"}]. Se não encontrar o preço, bota 0.`;
     
-    let fotoResult;
-    try {
-      fotoResult = await model.generateContent([promptFoto, imagePart]);
-      if (!fotoResult || !fotoResult.response || !fotoResult.response.text()) {
-        throw new Error("Análise de imagem vazia.");
+    const fotoResult = await model.generateContent([promptFoto, imagePart]);
+    let jsonString = fotoResult.response.text().trim();
+    if (jsonString.startsWith('```json')) jsonString = jsonString.slice(7, -3);
+    if (jsonString.startsWith('```')) jsonString = jsonString.slice(3, -3);
+
+    const itensLidos = JSON.parse(jsonString);
+    let msgResposta = "✅ *Itens extraídos da foto e registados:*\n\n";
+
+    for (const produto of itensLidos) {
+      const { item, quantidade, preco, loja } = produto;
+      const qtdEntrada = quantidade || parseInt(legenda) || 1;
+      const precoFinal = preco || 0;
+      const precoUnit = precoFinal / qtdEntrada;
+
+      const { data: exist } = await supabase.from('despensa').select('*').ilike('item', `%${item}%`);
+      
+      if (exist && exist.length > 0) {
+        await supabase.from('despensa').update({ 
+          quantidade: exist[0].quantidade + qtdEntrada, 
+          preco_unitario: precoUnit 
+        }).eq('id', exist[0].id);
+      } else {
+        await supabase.from('despensa').insert([{ 
+          item, 
+          quantidade: qtdEntrada, 
+          categoria: 'Mercearia', 
+          local: 'Armário', 
+          preco_unitario: precoUnit 
+        }]);
       }
-    } catch (aiError) {
-      console.error("ERRO IA (Foto) - TAREFA CANCELADA:", aiError.message);
-      return ctx.reply("❌ Tarefa cancelada: não consegui ler a imagem. Tenta tirar outra foto.");
+
+      await supabase.from('historico_movimentacoes').insert([{ 
+        item, 
+        tipo_movimento: 'entrada', 
+        quantidade: qtdEntrada, 
+        preco_unitario: precoUnit, 
+        responsavel: ctx.from.first_name || 'Família',
+        loja: loja || 'Supermercado',
+        metodo_pagamento: 'Não informado'
+      }]);
+      
+      await supabase.from('lista_compras').delete().ilike('item', `%${item}%`);
+      msgResposta += `• ${item} (x${qtdEntrada}) | R$ ${precoFinal.toFixed(2)}\n`;
     }
 
-    const textoExtraido = fotoResult.response.text().trim();
-    await ctx.reply(`✅ Produto Detetado:\n${textoExtraido}\n⚙️ A registar na despensa...`);
-    await processarOrdem(ctx, textoExtraido);
+    await ctx.replyWithMarkdown(msgResposta);
   } catch (error) {
-    console.error("Erro no processamento de foto - TAREFA CANCELADA:", error);
-    ctx.reply("❌ Tarefa cancelada devido a um erro ao processar a fotografia.");
+    console.error("Erro na foto:", error);
+    ctx.reply("❌ Erro ao processar a fotografia do talão. Tenta enviar uma foto mais nítida.");
   }
 });
 
