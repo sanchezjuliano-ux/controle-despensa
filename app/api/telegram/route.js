@@ -24,39 +24,45 @@ async function processarOrdem(ctx, texto) {
       Classifica a intenção em uma destas cinco categorias exatas:
       1. "REGISTAR" (se o utilizador comprou, adicionou itens ou repôs stock)
       2. "CONSUMIR" (se o utilizador gastou, consumiu, usou, comeu ou quer dar baixa num item)
-      3. "CONSULTAR" (se o utilizador está a perguntar o que tem na despensa ou stock atual)
+      3. "CONSULTAR" (se o utilizador está a perguntar o que tem na despensa, stock atual ou o que está num local específico como gaveta, armário, frigorífico)
       4. "COMPARAR_SUGERIR" (se o utilizador quer relatórios gerais de stock crítico ou compras pendentes)
-      5. "ANALISE_CONSUMO" (se o utilizador está a perguntar quanto tempo dura um produto específico, ex: "quanto tempo dura o óleo?", "em média o azeite dura quanto?")
+      5. "ANALISE_CONSUMO" (se o utilizador está a perguntar quanto tempo dura um produto específico)
 
       Devolve APENAS a palavra da categoria ("REGISTAR", "CONSUMIR", "CONSULTAR", "COMPARAR_SUGERIR" ou "ANALISE_CONSUMO") e mais nada.
       Mensagem: "${texto}"
     `;
 
-    let intentResult;
-    try {
-      intentResult = await model.generateContent(intentPrompt);
-      if (!intentResult || !intentResult.response || !intentResult.response.text()) {
-        throw new Error("Resposta vazia ao detetar intenção.");
-      }
-    } catch (aiError) {
-      console.error("ERRO IA (Intenção) - TAREFA CANCELADA:", aiError.message);
-      return ctx.reply('❌ Tarefa cancelada devido a uma falha temporária no motor de IA. Tenta novamente.');
-    }
-
+    let intentResult = await model.generateContent(intentPrompt);
     const intencao = intentResult.response.text().trim().toUpperCase();
 
     if (intencao.includes('CONSULTAR')) {
-      const { data, error } = await supabase.from('despensa').select('*').order('item', { ascending: true });
-      if (error || !data || data.length === 0) {
-        return ctx.reply('📦 A despensa está vazia ou não consegui aceder aos dados.');
+      const textoLower = texto.toLowerCase();
+      let query = supabase.from('despensa').select('*');
+
+      // Deteta se o utilizador especificou um local na pergunta
+      if (textoLower.includes('gaveta')) {
+        query = query.ilike('local', '%gaveta%');
+      } else if (textoLower.includes('armário') || textoLower.includes('armario')) {
+        query = query.ilike('local', '%armário%');
+      } else if (textoLower.includes('frigorífico') || textoLower.includes('geladeira')) {
+        query = query.ilike('local', '%frigorífico%');
+      } else if (textoLower.includes('despensa')) {
+        query = query.ilike('local', '%despensa%');
       }
-      let msgResposta = "📦 *Inventário Atual da Despensa:*\n\n";
+
+      const { data, error } = await query.order('item', { ascending: true });
+      
+      if (error || !data || data.length === 0) {
+        return ctx.reply('📦 Não encontrei itens registados com esse filtro ou local.');
+      }
+
+      let msgResposta = "📦 *Inventário Encontrado:*\n\n";
       data.forEach(item => {
         const precoUn = item.preco_unitario ? Number(item.preco_unitario).toFixed(2) : '0.00';
         let alerta = "";
         if (item.quantidade === 0) alerta = " 🚨 *[ACABOU]*";
         else if (item.quantidade === 1) alerta = " ⚠️ *[ACABANDO]*";
-        msgResposta += `• *${item.item}* (x${item.quantidade})${alerta} | R$ ${precoUn}\n`;
+        msgResposta += `• *${item.item}* (x${item.quantidade})${alerta} | Local: ${item.local || 'Armário'}\n`;
       });
       return ctx.replyWithMarkdown(msgResposta);
     }
