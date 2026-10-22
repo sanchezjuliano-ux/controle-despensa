@@ -475,7 +475,7 @@ export default function Home() {
     }
   }
 
-  async function darBaixa(id: string, currentQtd: number, itemName: string) {
+async function darBaixa(id: string, currentQtd: number, itemName: string) {
     let novaQtd = currentQtd - 1;
     if (novaQtd < 0) novaQtd = 0;
 
@@ -491,13 +491,24 @@ export default function Home() {
     }]);
 
     if (novaQtd === 0) {
-      await supabase.from('lista_compras').insert([{ item: itemName, quantidade_sugerida: calcularSugestaoCompra(itemName) }]);
+      const { data: jaExiste } = await supabase.from('lista_compras').select('id').ilike('item', `%${itemName}%`);
+      
+      if (!jaExiste || jaExiste.length === 0) {
+        const { error } = await supabase.from('lista_compras').insert([{ 
+          item: itemName, 
+          quantidade_sugerida: calcularSugestaoCompra(itemName) 
+        }]);
+        
+        if (error) {
+          await supabase.from('lista_compras').insert([{ item: itemName }]);
+        }
+      }
       await enviarAlertaTelegram(`🚨 ALERTA DESPENSA: O item *${itemName}* ACABOU e foi movido para a lista de compras!`);
     } else if (novaQtd === 1) {
       await enviarAlertaTelegram(`⚠️ ALERTA DESPENSA: O item *${itemName}* está a ACABAR (Resta apenas 1 unidade).`);
     }
 
-    carregarDados();
+    await carregarDados();
   }
 
   const toggleExpand = (id: string) => {
