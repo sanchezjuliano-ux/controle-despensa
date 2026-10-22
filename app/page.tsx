@@ -654,7 +654,6 @@ export default function Home() {
                     />
                   </div>
 
-                  {/* CATEGORIA COM BOTÃO DE EXCLUSÃO */}
                   <div>
                     <div className="flex justify-between items-center mb-1">
                       <label className="block text-xs text-slate-400">Categoria</label>
@@ -721,7 +720,6 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* LOCAL COM BOTÃO DE EXCLUSÃO */}
                   <div>
                     <div className="flex justify-between items-center mb-1">
                       <label className="block text-xs text-slate-400">Local</label>
@@ -847,6 +845,7 @@ export default function Home() {
                 </div>
               </div>
               
+              {/* VERSÃO MOBILE */}
               <div className="block md:hidden space-y-2.5">
                 {inventarioFiltrado.map(prod => {
                   const isExpanded = expandedItems[prod.id];
@@ -928,10 +927,12 @@ export default function Home() {
                 )}
               </div>
 
+              {/* VERSÃO PC */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-800 text-slate-400 text-xs">
+                      <th className="pb-3 w-8"></th>
                       <th className="pb-3">Item</th>
                       <th className="pb-3 text-center">Qtd</th>
                       <th className="pb-3">Validade</th>
@@ -943,6 +944,7 @@ export default function Home() {
                   <tbody className="divide-y divide-slate-800/50">
                     {inventarioFiltrado.map(prod => {
                       const isEsgotado = prod.quantidade === 0;
+                      const isExpanded = expandedItems[prod.id];
                       const stats = analisarItem(prod.item, prod.quantidade);
                       let alertaValidade = false;
                       if (prod.validade) {
@@ -951,51 +953,71 @@ export default function Home() {
                       }
 
                       return (
-                        <tr key={prod.id} className={`hover:bg-slate-800/30 ${isEsgotado ? 'bg-red-950/20 text-red-200' : alertaValidade ? 'bg-amber-950/20 text-amber-200' : ''}`}>
-                          <td className="py-3.5 font-medium">
-                            {prod.item}
-                            {prod.quantidade === 0 && <span className="ml-2 text-xs bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Acabou</span>}
-                            {prod.quantidade === 1 && <span className="ml-2 text-xs bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Acabando</span>}
-                          </td>
-                          <td className="py-3.5 text-center font-bold">{prod.quantidade}</td>
-                          <td className="py-3.5 text-xs text-slate-400">
-                            {prod.validade || 'Sem data'}
-                            {alertaValidade && <span className="block text-[10px] text-amber-400 font-bold">⚠️ Vence em breve</span>}
-                          </td>
-                          <td className="py-3.5 text-xs text-slate-300">
-                            <span className="block text-emerald-400">{stats.mediaDiasConsumo > 0 ? `${stats.mediaDiasConsumo} dias/ciclo` : '-'}</span>
-                            <span className="block text-[10px] text-slate-400">Acaba em: {stats.dataTerminoFmt}</span>
-                          </td>
-                          <td className="py-3.5 text-slate-300">{Number(prod.preco_unitario || 0).toFixed(2)}</td>
-                          <td className="py-3.5 text-right space-x-1.5">
-                            <button 
-                              onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
-                              className="bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
-                              title="Consumir 1 unidade"
-                            >
-                              -1
-                            </button>
-                            <button 
-                              onClick={() => iniciarEdicao(prod)}
-                              className="bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
-                              title="Editar item"
-                            >
-                              ✏️ Editar
-                            </button>
-                            <button 
-                              onClick={() => excluirItem(prod.id, prod.item)}
-                              className="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
-                              title="Excluir item"
-                            >
-                              🗑️
-                            </button>
-                          </td>
-                        </tr>
+                        <>
+                          <tr key={prod.id} className={`hover:bg-slate-800/30 ${isEsgotado ? 'bg-red-950/20 text-red-200' : alertaValidade ? 'bg-amber-950/20 text-amber-200' : ''}`}>
+                            <td className="py-3.5">
+                              <button 
+                                onClick={() => toggleExpand(prod.id)}
+                                className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-xs font-bold"
+                                title="Ver Detalhes"
+                              >
+                                {isExpanded ? '▲' : '▼'}
+                              </button>
+                            </td>
+                            <td className="py-3.5 font-medium">
+                              {prod.item}
+                              {prod.quantidade === 0 && <span className="ml-2 text-xs bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Acabou</span>}
+                              {prod.quantidade === 1 && <span className="ml-2 text-xs bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Acabando</span>}
+                            </td>
+                            <td className="py-3.5 text-center font-bold">{prod.quantidade}</td>
+                            <td className="py-3.5 text-xs text-slate-400">
+                              {prod.validade || 'Sem data'}
+                              {alertaValidade && <span className="block text-[10px] text-amber-400 font-bold">⚠️ Vence em breve</span>}
+                            </td>
+                            <td className="py-3.5 text-xs text-slate-300">
+                              <span className="block text-emerald-400">{stats.mediaDiasConsumo > 0 ? `${stats.mediaDiasConsumo} dias/ciclo` : '-'}</span>
+                              <span className="block text-[10px] text-slate-400">Acaba em: {stats.dataTerminoFmt}</span>
+                            </td>
+                            <td className="py-3.5 text-slate-300">{Number(prod.preco_unitario || 0).toFixed(2)}</td>
+                            <td className="py-3.5 text-right space-x-1.5">
+                              <button 
+                                onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
+                                className="bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                                title="Consumir 1 unidade"
+                              >
+                                -1
+                              </button>
+                              <button 
+                                onClick={() => iniciarEdicao(prod)}
+                                className="bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                                title="Editar item"
+                              >
+                                ✏️ Editar
+                              </button>
+                              <button 
+                                onClick={() => excluirItem(prod.id, prod.item)}
+                                className="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                                title="Excluir item"
+                              >
+                                🗑️
+                              </button>
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr key={`${prod.id}-expand`} className="bg-slate-900/60 border-b border-slate-800">
+                              <td colSpan={7} className="px-6 py-3 text-xs text-slate-300 space-y-1">
+                                <p>🏷️ Categoria: <span className="text-slate-100 font-medium">{prod.categoria || 'Mercearia'}</span></p>
+                                <p>📍 Local: <span className="text-slate-100 font-medium">{prod.local || 'Armário'}</span></p>
+                                <p>💰 Preço Unitário Exato: <span className="text-emerald-400 font-medium">R$ {Number(prod.preco_unitario || 0).toFixed(4)}</span></p>
+                              </td>
+                            </tr>
+                          )}
+                        </>
                       );
                     })}
                     {inventarioFiltrado.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center text-slate-500 text-sm">Nenhum item encontrado.</td>
+                        <td colSpan={7} className="py-8 text-center text-slate-500 text-sm">Nenhum item encontrado.</td>
                       </tr>
                     )}
                   </tbody>
@@ -1006,7 +1028,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* GUIA 2: LISTA DE COMPRAS */}
         {activeTab === 'compras' && (
           <div className="space-y-6">
             <input 
@@ -1136,7 +1157,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* GUIA 3: HISTÓRICO */}
         {activeTab === 'historico' && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
