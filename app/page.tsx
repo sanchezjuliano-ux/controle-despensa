@@ -23,6 +23,7 @@ export default function Home() {
   const [expandedItems, setExpandedItems] = useState<{ [key: string]: boolean }>({});
   const [precosAtuais, setPrecosAtuais] = useState<{ [key: string]: string }>({});
   const [quantidadesCompra, setQuantidadesCompra] = useState<{ [key: string]: number }>({});
+  const [validadesCompra, setValidadesCompra] = useState<{ [key: string]: string }>({});
 
   const [categoriasList, setCategoriasList] = useState<string[]>(['Mercearia', 'Limpeza', 'Higiene', 'Bebidas', 'Outros']);
   const [locaisList, setLocaisList] = useState<string[]>(['Armário', 'Frigorífico', 'Despensa', 'Área de Serviço']);
@@ -183,20 +184,25 @@ export default function Home() {
       for (const c of itensParaFinalizar) {
         const precoUnit = parseFloat(precosAtuais[c.id]);
         const qtdComprar = intToNumber(quantidadesCompra[c.id]);
+        const validadeNova = validadesCompra[c.id] || null;
         const itemName = c.item;
 
         const { data: existente } = await supabase.from('despensa').select('*').ilike('item', `%${itemName}%`);
 
         if (existente && existente.length > 0) {
           const atual = existente[0];
-          await supabase.from('despensa').update({
+          const payloadUpdate: any = {
             quantidade: atual.quantidade + qtdComprar,
             preco_unitario: precoUnit
-          }).eq('id', atual.id);
+          };
+          if (validadeNova) payloadUpdate.validade = validadeNova;
+
+          await supabase.from('despensa').update(payloadUpdate).eq('id', atual.id);
         } else {
           await supabase.from('despensa').insert([{
             item: itemName,
             quantidade: qtdComprar,
+            validade: validadeNova,
             categoria: 'Mercearia',
             local: 'Armário',
             preco_unitario: precoUnit
@@ -217,8 +223,13 @@ export default function Home() {
       }
 
       const novosPrecos = { ...precosAtuais };
-      itensParaFinalizar.forEach(c => delete novosPrecos[c.id]);
+      const novasValidades = { ...validadesCompra };
+      itensParaFinalizar.forEach(c => {
+        delete novosPrecos[c.id];
+        delete novasValidades[c.id];
+      });
       setPrecosAtuais(novosPrecos);
+      setValidadesCompra(novasValidades);
 
       alert('🎉 Compra finalizada com sucesso! Os itens atualizados voltaram para a despensa.');
       carregarDados();
@@ -453,7 +464,7 @@ export default function Home() {
   }
 
   async function excluirItem(id: string, itemName: string) {
-    if (!confirm(`Tens a certeza que queres eliminar "${itemName}" do inventário?`)) return;
+    if (!confirm(`Tens a certeza que queres eliminar "${itemName}" permanentemente do inventário? (Ele NÃO irá para a lista de compras)`)) return;
 
     const { error } = await supabase.from('despensa').delete().eq('id', id);
     if (!error) {
@@ -493,10 +504,12 @@ export default function Home() {
     setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // Aqui é onde os ZOMBIES morrem. Filtramos quantidade > 0 para ocultá-los da vista da despensa.
   const inventarioFiltrado = inventario.filter(prod => 
-    prod.item.toLowerCase().includes(buscaDespensa.toLowerCase()) ||
+    prod.quantidade > 0 &&
+    (prod.item.toLowerCase().includes(buscaDespensa.toLowerCase()) ||
     (prod.categoria && prod.categoria.toLowerCase().includes(buscaDespensa.toLowerCase())) ||
-    (prod.local && prod.local.toLowerCase().includes(buscaDespensa.toLowerCase()))
+    (prod.local && prod.local.toLowerCase().includes(buscaDespensa.toLowerCase())))
   );
 
   const listaComprasFiltrada = listaCompras.filter(c => 
@@ -849,7 +862,6 @@ export default function Home() {
               <div className="block md:hidden space-y-2.5">
                 {inventarioFiltrado.map(prod => {
                   const isExpanded = expandedItems[prod.id];
-                  const isEsgotado = prod.quantidade === 0;
                   const stats = analisarItem(prod.item, prod.quantidade);
 
                   let alertaValidade = false;
@@ -862,9 +874,7 @@ export default function Home() {
                     <div 
                       key={prod.id} 
                       className={`border rounded-xl p-3 shadow transition ${
-                        isEsgotado 
-                          ? 'bg-red-950/40 border-red-800 text-red-100' 
-                          : alertaValidade 
+                        alertaValidade 
                           ? 'bg-amber-950/40 border-amber-800 text-amber-100'
                           : 'bg-slate-950 border-slate-800/80 text-slate-100'
                       }`}
@@ -872,7 +882,7 @@ export default function Home() {
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <span className="font-semibold text-sm truncate">{prod.item}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded font-bold shrink-0 ${isEsgotado ? 'bg-red-900 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                          <span className="text-xs px-2 py-0.5 rounded font-bold shrink-0 bg-slate-800 text-slate-300">
                             x{prod.quantidade}
                           </span>
                         </div>
@@ -943,7 +953,6 @@ export default function Home() {
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
                     {inventarioFiltrado.map(prod => {
-                      const isEsgotado = prod.quantidade === 0;
                       const isExpanded = expandedItems[prod.id];
                       const stats = analisarItem(prod.item, prod.quantidade);
                       let alertaValidade = false;
@@ -954,7 +963,7 @@ export default function Home() {
 
                       return (
                         <>
-                          <tr key={prod.id} className={`hover:bg-slate-800/30 ${isEsgotado ? 'bg-red-950/20 text-red-200' : alertaValidade ? 'bg-amber-950/20 text-amber-200' : ''}`}>
+                          <tr key={prod.id} className={`hover:bg-slate-800/30 ${alertaValidade ? 'bg-amber-950/20 text-amber-200' : ''}`}>
                             <td className="py-3.5">
                               <button 
                                 onClick={() => toggleExpand(prod.id)}
@@ -966,7 +975,6 @@ export default function Home() {
                             </td>
                             <td className="py-3.5 font-medium">
                               {prod.item}
-                              {prod.quantidade === 0 && <span className="ml-2 text-xs bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Acabou</span>}
                               {prod.quantidade === 1 && <span className="ml-2 text-xs bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Acabando</span>}
                             </td>
                             <td className="py-3.5 text-center font-bold">{prod.quantidade}</td>
@@ -1003,7 +1011,7 @@ export default function Home() {
                               </button>
                             </td>
                           </tr>
-{isExpanded && (
+                          {isExpanded && (
                             <tr key={`${prod.id}-expand`} className="bg-slate-900/60 border-b border-slate-800">
                               <td colSpan={7} className="px-6 py-3 text-xs text-slate-300 space-y-1.5 animate-fadeIn">
                                 <p>📅 Validade: <span className={alertaValidade ? 'text-amber-400 font-bold' : 'text-slate-100'}>{prod.validade || 'Sem data'} {alertaValidade && '⚠️ Vence em breve!'}</span></p>
@@ -1146,6 +1154,16 @@ export default function Home() {
                           {loadingIA && comprasFileId === c.id ? '⏳' : '📸'}
                         </button>
 
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between border-t border-slate-800/60 pt-2">
+                        <span className="text-[10px] text-slate-400 font-medium">📅 Validade (Opcional):</span>
+                        <input
+                          type="date"
+                          value={validadesCompra[c.id] || ''}
+                          onChange={(e) => setValidadesCompra({ ...validadesCompra, [c.id]: e.target.value })}
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] focus:border-amber-500 outline-none text-slate-300"
+                        />
                       </div>
 
                     </div>
