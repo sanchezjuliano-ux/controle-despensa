@@ -1003,12 +1003,15 @@ export default function Home() {
                               </button>
                             </td>
                           </tr>
-                          {isExpanded && (
+{isExpanded && (
                             <tr key={`${prod.id}-expand`} className="bg-slate-900/60 border-b border-slate-800">
-                              <td colSpan={7} className="px-6 py-3 text-xs text-slate-300 space-y-1">
-                                <p>🏷️ Categoria: <span className="text-slate-100 font-medium">{prod.categoria || 'Mercearia'}</span></p>
-                                <p>📍 Local: <span className="text-slate-100 font-medium">{prod.local || 'Armário'}</span></p>
-                                <p>💰 Preço Unitário Exato: <span className="text-emerald-400 font-medium">R$ {Number(prod.preco_unitario || 0).toFixed(4)}</span></p>
+                              <td colSpan={7} className="px-6 py-3 text-xs text-slate-300 space-y-1.5 animate-fadeIn">
+                                <p>📅 Validade: <span className={alertaValidade ? 'text-amber-400 font-bold' : 'text-slate-100'}>{prod.validade || 'Sem data'} {alertaValidade && '⚠️ Vence em breve!'}</span></p>
+                                <p>💰 Preço Unitário: <span className="text-slate-100">{Number(prod.preco_unitario || 0).toFixed(2)}</span></p>
+                                <p>⏳ Consumo Médio: <span className="text-emerald-400 font-medium">{stats.mediaDiasConsumo > 0 ? `Dura aprox. ${stats.mediaDiasConsumo} dias` : 'Calculando...'}</span></p>
+                                <p>🔮 Previsão de Término: <span className="text-amber-400 font-medium">{stats.dataTerminoFmt}</span></p>
+                                <p>🏷️ Categoria: <span className="text-slate-100">{prod.categoria || 'Mercearia'}</span></p>
+                                <p>📍 Local: <span className="text-slate-100">{prod.local || 'Armário'}</span></p>
                               </td>
                             </tr>
                           )}
