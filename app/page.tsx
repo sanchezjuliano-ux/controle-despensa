@@ -998,7 +998,7 @@ export default function Home() {
                 </div>
               </div>
               
-              {/* VERSÃO MOBILE */}
+{/* VERSÃO MOBILE */}
               <div className="block md:hidden space-y-2.5">
                 {inventarioFiltrado.map(prod => {
                   const isExpanded = expandedItems[prod.id];
@@ -1027,7 +1027,7 @@ export default function Home() {
                           </span>
                         </div>
 
-          <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-1 shrink-0">
                           <button 
                             onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
                             className="bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2 py-1 rounded-lg text-xs font-medium"
@@ -1057,3 +1057,22 @@ export default function Home() {
                             {isExpanded ? '▲' : '▼'}
                           </button>
                         </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="mt-3 pt-2.5 border-t border-slate-800/80 text-xs text-slate-300 space-y-1.5 animate-fadeIn">
+                          <p>📅 Validade: <span className={alertaValidade ? 'text-amber-400 font-bold' : 'text-slate-100'}>{prod.validade || 'Sem data'} {alertaValidade && '⚠️ Vence em breve!'}</span></p>
+                          <p>💰 Preço Unitário: <span className="text-slate-100">{Number(prod.preco_unitario || 0).toFixed(2)}</span></p>
+                          <p>⏳ Consumo Médio: <span className="text-emerald-400 font-medium">{stats.mediaDiasConsumo > 0 ? `Dura aprox. ${stats.mediaDiasConsumo} dias` : 'Calculando...'}</span></p>
+                          <p>🔮 Previsão de Término: <span className="text-amber-400 font-medium">{stats.dataTerminoFmt}</span></p>
+                          <p>🏷️ Categoria: <span className="text-slate-100">{prod.categoria || 'Mercearia'}</span></p>
+                          <p>📍 Local: <span className="text-slate-100">{prod.local || 'Armário'}</span></p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {inventarioFiltrado.length === 0 && (
+                  <p className="py-8 text-center text-slate-500 text-sm">Nenhum item encontrado.</p>
+                )}
+              </div>
