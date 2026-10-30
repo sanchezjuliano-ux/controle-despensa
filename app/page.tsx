@@ -1141,15 +1141,23 @@ async function darBaixa(id: string, currentQtd: number, itemName: string) {
 
                         <div className="relative">
                           <span className="absolute left-1 top-2 text-[9px] text-slate-400">Qtd</span>
-                          <input 
-                            type="number" 
-                            min="1"
-                            value={qtdComprarVal} 
-                            onChange={(e) => setQuantidadesCompra({ ...quantidadesCompra, [c.id]: intToNumber(e.target.value) })}
-                            placeholder="Qtd" 
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-amber-300 text-center font-bold"
-                            title="Quantidade a Comprar"
-                          />
+                        <input 
+  type="number" 
+  min="1"
+  value={quantidadesCompra[c.id] !== undefined ? quantidadesCompra[c.id] : calcularSugestaoCompra(c.item)} 
+  onChange={(e) => {
+    const val = e.target.value;
+    setQuantidadesCompra({ ...quantidadesCompra, [c.id]: val === '' ? '' : parseInt(val) });
+  }}
+  onBlur={(e) => {
+    if (e.target.value === '' || parseInt(e.target.value) < 1) {
+      setQuantidadesCompra({ ...quantidadesCompra, [c.id]: 1 });
+    }
+  }}
+  placeholder="Qtd" 
+  className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-amber-300 text-center font-bold"
+  title="Quantidade a Comprar"
+/>
                         </div>
 
                         <button
