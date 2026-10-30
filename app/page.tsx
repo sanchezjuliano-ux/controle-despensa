@@ -1027,7 +1027,33 @@ export default function Home() {
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
                           <button 
                             onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
-                            className="bg-amber
+                            className="bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2 py-1 rounded-lg text-xs font-medium"
+                            title="Consumir 1"
+                          >
+                            -1
+                          </button>
+                          <button 
+                            onClick={() => iniciarEdicao(prod)}
+                            className="bg-blue-950/80 hover:bg-blue-900 text-blue-300 border border-blue-800 p-1.5 rounded-lg text-xs"
+                            title="Editar"
+                          >
+                            ✏️
+                          </button>
+                          <button 
+                            onClick={() => excluirItem(prod.id, prod.item)}
+                            className="bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800 p-1.5 rounded-lg text-xs"
+                            title="Excluir"
+                          >
+                            🗑️
+                          </button>
+                          <button 
+                            onClick={() => toggleExpand(prod.id)}
+                            className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-1.5 rounded-lg text-xs font-bold"
+                            title="Ver Detalhes"
+                          >
+                            {isExpanded ? '▲' : '▼'}
+                          </button>
+                        </div>
