@@ -961,7 +961,6 @@ async function darBaixa(id: string, currentQtd: number, itemName: string) {
                     )}
                   </div>
 
-                  )}
 
                   <div className="md:col-span-2 mt-2 flex gap-3">
                     <button 
