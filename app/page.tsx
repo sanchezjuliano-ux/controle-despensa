@@ -474,7 +474,17 @@ export default function Home() {
       alert('Erro ao excluir item.');
     }
   }
+async function excluirItemCompras(id: string, itemName: string) {
+    if (!confirm(`Tens a certeza que queres descartar "${itemName}" da lista de compras?`)) return;
 
+    const { error } = await supabase.from('lista_compras').delete().eq('id', id);
+    if (!error) {
+      alert('🗑️ Item descartado da lista de compras.');
+      carregarDados();
+    } else {
+      alert('Erro ao descartar item.');
+    }
+  }
 async function darBaixa(id: string, currentQtd: number, itemName: string) {
     let novaQtd = currentQtd - 1;
     if (novaQtd < 0) novaQtd = 0;
