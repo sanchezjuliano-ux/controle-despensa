@@ -33,6 +33,13 @@ export default function Home() {
   const [modoNovoLocal, setModoNovoLocal] = useState(false);
   const [novoLocalInput, setNovoLocalInput] = useState('');
 
+  const [lojasList, setLojasList] = useState<string[]>(['Supermercado', 'Tenda', 'Atacadão', 'Assaí']);
+  const [pagamentosList, setPagamentosList] = useState<string[]>(['Dinheiro', 'Pix', 'Cartão de Crédito', 'Cartão de Débito']);
+
+  const [modoNovoLoja, setModoNovoLoja] = useState(false);
+  const [novoLojaInput, setNovoLojaInput] = useState('');
+  const [modoNovoPagamento, setModoNovoPagamento] = useState(false);
+  const [novoPagamentoInput, setNovoPagamentoInput] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [item, setItem] = useState('');
   const [quantidade, setQuantidade] = useState<string | number>(1);
@@ -822,28 +829,138 @@ async function darBaixa(id: string, currentQtd: number, itemName: string) {
 
                   {!editingId && (
                     <>
-                      <div>
-                        <label className="block text-xs text-slate-400 mb-1">Loja / Supermercado</label>
+      <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs text-slate-400">Loja / Supermercado</label>
+                      {lojasList.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Queres eliminar a loja "${loja}" da lista?`)) {
+                              const novasLojas = lojasList.filter(l => l !== loja);
+                              setLojasList(novasLojas);
+                              setLoja(novasLojas[0] || 'Supermercado');
+                            }
+                          }}
+                          className="text-[11px] text-red-400 hover:text-red-300 font-medium"
+                          title="Excluir loja selecionada"
+                        >
+                          🗑️ Excluir loja
+                        </button>
+                      )}
+                    </div>
+                    {!modoNovoLoja ? (
+                      <select 
+                        value={loja} 
+                        onChange={e => {
+                          if (e.target.value === '___novo___') {
+                            setModoNovoLoja(true);
+                          } else {
+                            setLoja(e.target.value);
+                          }
+                        }} 
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
+                      >
+                        {lojasList.map(l => (
+                          <option key={l} value={l}>{l}</option>
+                        ))}
+                        <option value="___novo___" className="text-emerald-400 font-bold">+ Adicionar nova loja...</option>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
                         <input 
                           type="text" 
-                          value={loja} 
-                          onChange={e => setLoja(e.target.value)} 
-                          placeholder="Ex: Tenda" 
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
+                          value={novoLojaInput} 
+                          onChange={e => setNovoLojaInput(e.target.value)}
+                          placeholder="Nome da nova loja"
+                          className="w-full bg-slate-950 border border-emerald-500 rounded-xl p-3 text-sm outline-none text-slate-100"
+                          autoFocus
                         />
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            if (novoLojaInput.trim()) {
+                              const novaLoja = novoLojaInput.trim();
+                              if (!lojasList.includes(novaLoja)) setLojasList([...lojasList, novaLoja]);
+                              setLoja(novaLoja);
+                            }
+                            setModoNovoLoja(false);
+                            setNovoLojaInput('');
+                          }}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 rounded-xl text-xs font-bold"
+                        >
+                          OK
+                        </button>
                       </div>
+                    )}
+                  </div>
 
-                      <div className="md:col-span-2">
-                        <label className="block text-xs text-slate-400 mb-1">Forma de Pagamento</label>
+                  <div className="md:col-span-2">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs text-slate-400">Forma de Pagamento</label>
+                      {pagamentosList.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Queres eliminar o pagamento "${pagamento}" da lista?`)) {
+                              const novosPags = pagamentosList.filter(p => p !== pagamento);
+                              setPagamentosList(novosPags);
+                              setPagamento(novosPags[0] || 'Dinheiro');
+                            }
+                          }}
+                          className="text-[11px] text-red-400 hover:text-red-300 font-medium"
+                          title="Excluir pagamento selecionado"
+                        >
+                          🗑️ Excluir pagamento
+                        </button>
+                      )}
+                    </div>
+                    {!modoNovoPagamento ? (
+                      <select 
+                        value={pagamento} 
+                        onChange={e => {
+                          if (e.target.value === '___novo___') {
+                            setModoNovoPagamento(true);
+                          } else {
+                            setPagamento(e.target.value);
+                          }
+                        }} 
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
+                      >
+                        {pagamentosList.map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                        <option value="___novo___" className="text-emerald-400 font-bold">+ Adicionar novo pagamento...</option>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
                         <input 
                           type="text" 
-                          value={pagamento} 
-                          onChange={e => setPagamento(e.target.value)} 
-                          placeholder="Ex: Cartão Tenda" 
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none" 
+                          value={novoPagamentoInput} 
+                          onChange={e => setNovoPagamentoInput(e.target.value)}
+                          placeholder="Nome da forma de pagamento"
+                          className="w-full bg-slate-950 border border-emerald-500 rounded-xl p-3 text-sm outline-none text-slate-100"
+                          autoFocus
                         />
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            if (novoPagamentoInput.trim()) {
+                              const novoPag = novoPagamentoInput.trim();
+                              if (!pagamentosList.includes(novoPag)) setPagamentosList([...pagamentosList, novoPag]);
+                              setPagamento(novoPag);
+                            }
+                            setModoNovoPagamento(false);
+                            setNovoPagamentoInput('');
+                          }}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 rounded-xl text-xs font-bold"
+                        >
+                          OK
+                        </button>
                       </div>
-                    </>
+                    )}
+                  </div>
+
                   )}
 
                   <div className="md:col-span-2 mt-2 flex gap-3">
