@@ -1097,7 +1097,7 @@ async function darBaixa(id: string, currentQtd: number, itemName: string) {
               </div>
               
               <div className="space-y-3">
-               {listaComprasFiltrada.map(c => {
+              {listaComprasFiltrada.map(c => {
                   const { menor, mediaPreco } = analisarItem(c.item, 0);
                   const precoAtualVal = precosAtuais[c.id] || '';
                   const qtdComprarVal = quantidadesCompra[c.id] !== undefined ? quantidadesCompra[c.id] : calcularSugestaoCompra(c.item);
