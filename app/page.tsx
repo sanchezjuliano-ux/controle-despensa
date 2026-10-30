@@ -1097,7 +1097,7 @@ async function darBaixa(id: string, currentQtd: number, itemName: string) {
               </div>
               
               <div className="space-y-3">
-                {listaComprasFiltrada.map(c => {
+               {listaComprasFiltrada.map(c => {
                   const { menor, mediaPreco } = analisarItem(c.item, 0);
                   const precoAtualVal = precosAtuais[c.id] || '';
                   const qtdComprarVal = quantidadesCompra[c.id] !== undefined ? quantidadesCompra[c.id] : calcularSugestaoCompra(c.item);
@@ -1106,8 +1106,20 @@ async function darBaixa(id: string, currentQtd: number, itemName: string) {
                     <div key={c.id} className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl space-y-2.5 shadow">
                       
                       <div className="flex justify-between items-center">
-                        <span className="font-semibold text-sm text-slate-100 truncate pr-2">❌ {c.item}</span>
-                        <span className="text-[10px] text-amber-500 bg-amber-950/40 border border-amber-900 px-2.5 py-0.5 rounded-full font-medium shrink-0">Pendente</span>
+                        <div className="flex items-center gap-2 truncate pr-2">
+                          <span className="font-semibold text-sm text-slate-100 truncate">❌ {c.item}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] text-amber-500 bg-amber-950/40 border border-amber-900 px-2.5 py-0.5 rounded-full font-medium">Pendente</span>
+                          <button
+                            type="button"
+                            onClick={() => excluirItemCompras(c.id, c.item)}
+                            className="bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800 p-1.5 rounded-lg text-xs transition"
+                            title="Descartar item da lista"
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-[1fr_1fr_80px_55px_42px] gap-1.5 items-center">
@@ -1141,23 +1153,23 @@ async function darBaixa(id: string, currentQtd: number, itemName: string) {
 
                         <div className="relative">
                           <span className="absolute left-1 top-2 text-[9px] text-slate-400">Qtd</span>
-                        <input 
-  type="number" 
-  min="1"
-  value={quantidadesCompra[c.id] !== undefined ? quantidadesCompra[c.id] : calcularSugestaoCompra(c.item)} 
-  onChange={(e) => {
-    const val = e.target.value;
-    setQuantidadesCompra({ ...quantidadesCompra, [c.id]: val === '' ? '' : parseInt(val) });
-  }}
-  onBlur={(e) => {
-    if (e.target.value === '' || parseInt(e.target.value) < 1) {
-      setQuantidadesCompra({ ...quantidadesCompra, [c.id]: 1 });
-    }
-  }}
-  placeholder="Qtd" 
-  className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-amber-300 text-center font-bold"
-  title="Quantidade a Comprar"
-/>
+                          <input 
+                            type="number" 
+                            min="1"
+                            value={qtdComprarVal} 
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setQuantidadesCompra({ ...quantidadesCompra, [c.id]: val === '' ? '' : parseInt(val) });
+                            }}
+                            onBlur={(e) => {
+                              if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                                setQuantidadesCompra({ ...quantidadesCompra, [c.id]: 1 });
+                              }
+                            }}
+                            placeholder="Qtd" 
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-amber-300 text-center font-bold"
+                            title="Quantidade a Comprar"
+                          />
                         </div>
 
                         <button
