@@ -25,16 +25,16 @@ export default function Home() {
   const [quantidadesCompra, setQuantidadesCompra] = useState<{ [key: string]: number }>({});
   const [validadesCompra, setValidadesCompra] = useState<{ [key: string]: string }>({});
 
-  const [categoriasList, setCategoriasList] = useState<string[]>(['Mercearia', 'Limpeza', 'Higiene', 'Bebidas', 'Outros']);
-  const [locaisList, setLocaisList] = useState<string[]>(['Armário', 'Frigorífico', 'Despensa', 'Área de Serviço']);
+  const [categoriasList, setCategoriasList] = useState<string[]>(['Bebidas', 'Higiene', 'Limpeza', 'Mercearia', 'Outros'].sort());
+  const [locaisList, setLocaisList] = useState<string[]>(['Armário', 'Área de Serviço', 'Despensa', 'Frigorífico'].sort());
 
   const [modoNovoCategoria, setModoNovoCategoria] = useState(false);
   const [novoCategoriaInput, setNovoCategoriaInput] = useState('');
   const [modoNovoLocal, setModoNovoLocal] = useState(false);
   const [novoLocalInput, setNovoLocalInput] = useState('');
 
-  const [lojasList, setLojasList] = useState<string[]>(['Supermercado', 'Tenda', 'Atacadão', 'Assaí']);
-  const [pagamentosList, setPagamentosList] = useState<string[]>(['Dinheiro', 'Pix', 'Cartão de Crédito', 'Cartão de Débito']);
+  const [lojasList, setLojasList] = useState<string[]>(['Assaí', 'Atacadão', 'Supermercado', 'Tenda'].sort());
+  const [pagamentosList, setPagamentosList] = useState<string[]>(['Cartão de Crédito', 'Cartão de Débito', 'Dinheiro', 'Pix'].sort());
 
   const [modoNovoLoja, setModoNovoLoja] = useState(false);
   const [novoLojaInput, setNovoLojaInput] = useState('');
@@ -69,8 +69,8 @@ export default function Home() {
         if (d.categoria) catsSet.add(d.categoria);
         if (d.local) locsSet.add(d.local);
       });
-      setCategoriasList(Array.from(catsSet));
-      setLocaisList(Array.from(locsSet));
+      setCategoriasList(Array.from(catsSet).sort());
+      setLocaisList(Array.from(locsSet).sort());
     }
 
     const { data: comprasData } = await supabase.from('lista_compras').select('*').order('id', { ascending: false });
@@ -316,7 +316,7 @@ export default function Home() {
         setQuantidade(json.data.quantidade || 1);
         if (json.data.categoria) {
           if (!categoriasList.includes(json.data.categoria)) {
-            setCategoriasList(prev => [...prev, json.data.categoria]);
+            setCategoriasList(prev => [...prev, json.data.categoria].sort());
           }
           setCategoria(json.data.categoria);
         }
@@ -373,7 +373,7 @@ export default function Home() {
     if (modoNovoCategoria && novoCategoriaInput.trim()) {
       categoriaFinal = novoCategoriaInput.trim();
       if (!categoriasList.includes(categoriaFinal)) {
-        setCategoriasList(prev => [...prev, categoriaFinal]);
+        setCategoriasList(prev => [...prev, categoriaFinal].sort());
       }
     }
 
@@ -381,8 +381,24 @@ export default function Home() {
     if (modoNovoLocal && novoLocalInput.trim()) {
       localFinal = novoLocalInput.trim();
       if (!locaisList.includes(localFinal)) {
-        setLocaisList(prev => [...prev, localFinal]);
+        setLocaisList(prev => [...prev, localFinal].sort());
       }
+    }
+
+    if (modoNovoLoja && novoLojaInput.trim()) {
+      const novaLoja = novoLojaInput.trim();
+      if (!lojasList.includes(novaLoja)) {
+        setLojasList(prev => [...prev, novaLoja].sort());
+      }
+      setLoja(novaLoja);
+    }
+
+    if (modoNovoPagamento && novoPagamentoInput.trim()) {
+      const novoPag = novoPagamentoInput.trim();
+      if (!pagamentosList.includes(novoPag)) {
+        setPagamentosList(prev => [...prev, novoPag].sort());
+      }
+      setPagamento(novoPag);
     }
 
     const precoNum = preco ? parseFloat(preco) : 0;
@@ -448,6 +464,10 @@ export default function Home() {
     setNovoCategoriaInput('');
     setModoNovoLocal(false);
     setNovoLocalInput('');
+    setModoNovoLoja(false);
+    setNovoLojaInput('');
+    setModoNovoPagamento(false);
+    setNovoPagamentoInput('');
     setMostrarFormulario(false);
     carregarDados();
   }
@@ -458,16 +478,18 @@ export default function Home() {
     setQuantidade(prod.quantidade || 1);
     setValidade(prod.validade || '');
     if (prod.categoria && !categoriasList.includes(prod.categoria)) {
-      setCategoriasList(prev => [...prev, prod.categoria]);
+      setCategoriasList(prev => [...prev, prod.categoria].sort());
     }
     setCategoria(prod.categoria || 'Mercearia');
     if (prod.local && !locaisList.includes(prod.local)) {
-      setLocaisList(prev => [...prev, prod.local]);
+      setLocaisList(prev => [...prev, prod.local].sort());
     }
     setLocal(prod.local || 'Armário');
     setPreco(prod.preco_unitario ? (prod.preco_unitario * prod.quantidade).toFixed(2) : '');
     setModoNovoCategoria(false);
     setModoNovoLocal(false);
+    setModoNovoLoja(false);
+    setModoNovoPagamento(false);
     setMostrarFormulario(true);
   }
 
@@ -617,6 +639,8 @@ export default function Home() {
                   setPreco('');
                   setModoNovoCategoria(false);
                   setModoNovoLocal(false);
+                  setModoNovoLoja(false);
+                  setModoNovoPagamento(false);
                   setMostrarFormulario(!mostrarFormulario);
                 }}
                 className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 shadow"
@@ -729,7 +753,7 @@ export default function Home() {
                         }} 
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
                       >
-                        {[...categoriasList].sort().map(cat => (
+                        {categoriasList.map(cat => (
                           <option key={cat} value={cat}>{cat}</option>
                         ))}
                         <option value="___novo___" className="text-emerald-400 font-bold">+ Adicionar nova categoria...</option>
@@ -749,7 +773,7 @@ export default function Home() {
                           onClick={() => {
                             if (novoCategoriaInput.trim()) {
                               const novaCat = novoCategoriaInput.trim();
-                              if (!categoriasList.includes(novaCat)) setCategoriasList([...categoriasList, novaCat]);
+                              if (!categoriasList.includes(novaCat)) setCategoriasList([...categoriasList, novaCat].sort());
                               setCategoria(novaCat);
                             }
                             setModoNovoCategoria(false);
@@ -795,7 +819,7 @@ export default function Home() {
                         }} 
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
                       >
-                        {[...locaisList].sort().map(loc => (
+                        {locaisList.map(loc => (
                           <option key={loc} value={loc}>{loc}</option>
                         ))}
                         <option value="___novo___" className="text-emerald-400 font-bold">+ Adicionar novo local...</option>
@@ -815,7 +839,7 @@ export default function Home() {
                           onClick={() => {
                             if (novoLocalInput.trim()) {
                               const novoLoc = novoLocalInput.trim();
-                              if (!locaisList.includes(novoLoc)) setLocaisList([...locaisList, novoLoc]);
+                              if (!locaisList.includes(novoLoc)) setLocaisList([...locaisList, novoLoc].sort());
                               setLocal(novoLoc);
                             }
                             setModoNovoLocal(false);
@@ -863,7 +887,7 @@ export default function Home() {
                             }} 
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
                           >
-                            {[...lojasList].sort().map(l => (
+                            {lojasList.map(l => (
                               <option key={l} value={l}>{l}</option>
                             ))}
                             <option value="___novo___" className="text-emerald-400 font-bold">+ Adicionar nova loja...</option>
@@ -883,7 +907,7 @@ export default function Home() {
                               onClick={() => {
                                 if (novoLojaInput.trim()) {
                                   const novaLoja = novoLojaInput.trim();
-                                  if (!lojasList.includes(novaLoja)) setLojasList([...lojasList, novaLoja]);
+                                  if (!lojasList.includes(novaLoja)) setLojasList([...lojasList, novaLoja].sort());
                                   setLoja(novaLoja);
                                 }
                                 setModoNovoLoja(false);
@@ -929,7 +953,7 @@ export default function Home() {
                             }} 
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-emerald-500 outline-none text-slate-300"
                           >
-                            {[...pagamentosList].sort().map(p => (
+                            {pagamentosList.map(p => (
                               <option key={p} value={p}>{p}</option>
                             ))}
                             <option value="___novo___" className="text-emerald-400 font-bold">+ Adicionar novo pagamento...</option>
@@ -941,7 +965,7 @@ export default function Home() {
                               value={novoPagamentoInput} 
                               onChange={e => setNovoPagamentoInput(e.target.value)}
                               placeholder="Nome da forma de pagamento"
-                              className="w-full bg-slate-950 border border-slate-500 rounded-xl p-3 text-sm outline-none text-slate-100"
+                              className="w-full bg-slate-950 border border-emerald-500 rounded-xl p-3 text-sm outline-none text-slate-100"
                               autoFocus
                             />
                             <button 
@@ -949,7 +973,7 @@ export default function Home() {
                               onClick={() => {
                                 if (novoPagamentoInput.trim()) {
                                   const novoPag = novoPagamentoInput.trim();
-                                  if (!pagamentosList.includes(novoPag)) setPagamentosList([...pagamentosList, novoPag]);
+                                  if (!pagamentosList.includes(novoPag)) setPagamentosList([...pagamentosList, novoPag].sort());
                                   setPagamento(novoPag);
                                 }
                                 setModoNovoPagamento(false);
@@ -998,7 +1022,7 @@ export default function Home() {
                 </div>
               </div>
               
-{/* VERSÃO MOBILE */}
+              {/* VERSÃO MOBILE */}
               <div className="block md:hidden space-y-2.5">
                 {inventarioFiltrado.map(prod => {
                   const isExpanded = expandedItems[prod.id];
@@ -1076,3 +1100,322 @@ export default function Home() {
                   <p className="py-8 text-center text-slate-500 text-sm">Nenhum item encontrado.</p>
                 )}
               </div>
+
+              {/* VERSÃO PC */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 text-xs">
+                      <th className="pb-3 w-8"></th>
+                      <th className="pb-3">Item</th>
+                      <th className="pb-3 text-center">Qtd</th>
+                      <th className="pb-3">Validade</th>
+                      <th className="pb-3">Consumo / Término</th>
+                      <th className="pb-3">Preço Un.</th>
+                      <th className="pb-3 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {inventarioFiltrado.map(prod => {
+                      const isExpanded = expandedItems[prod.id];
+                      const stats = analisarItem(prod.item, prod.quantidade);
+                      let alertaValidade = false;
+                      if (prod.validade) {
+                        const diffDiasValidade = Math.ceil((new Date(prod.validade).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                        if (diffDiasValidade <= 7 && diffDiasValidade >= 0) alertaValidade = true;
+                      }
+
+                      return (
+                        <>
+                          <tr key={prod.id} className={`hover:bg-slate-800/30 ${alertaValidade ? 'bg-amber-950/20 text-amber-200' : ''}`}>
+                            <td className="py-3.5">
+                              <button 
+                                onClick={() => toggleExpand(prod.id)}
+                                className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-xs font-bold"
+                                title="Ver Detalhes"
+                              >
+                                {isExpanded ? '▲' : '▼'}
+                              </button>
+                            </td>
+                            <td className="py-3.5 font-medium">
+                              {prod.item}
+                              {prod.quantidade === 1 && <span className="ml-2 text-xs bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Acabando</span>}
+                            </td>
+                            <td className="py-3.5 text-center font-bold">{prod.quantidade}</td>
+                            <td className="py-3.5 text-xs text-slate-400">
+                              {prod.validade || 'Sem data'}
+                              {alertaValidade && <span className="block text-[10px] text-amber-400 font-bold">⚠️ Vence em breve</span>}
+                            </td>
+                            <td className="py-3.5 text-xs text-slate-300">
+                              <span className="block text-emerald-400">{stats.mediaDiasConsumo > 0 ? `${stats.mediaDiasConsumo} dias/ciclo` : '-'}</span>
+                              <span className="block text-[10px] text-slate-400">Acaba em: {stats.dataTerminoFmt}</span>
+                            </td>
+                            <td className="py-3.5 text-slate-300">{Number(prod.preco_unitario || 0).toFixed(2)}</td>
+                            <td className="py-3.5 text-right space-x-1.5">
+                              <button 
+                                onClick={() => darBaixa(prod.id, prod.quantidade, prod.item)}
+                                className="bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                                title="Consumir 1 unidade"
+                              >
+                                -1
+                              </button>
+                              <button 
+                                onClick={() => iniciarEdicao(prod)}
+                                className="bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                                title="Editar item"
+                              >
+                                ✏️ Editar
+                              </button>
+                              <button 
+                                onClick={() => excluirItem(prod.id, prod.item)}
+                                className="bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                                title="Excluir item"
+                              >
+                                🗑️
+                              </button>
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr key={`${prod.id}-expand`} className="bg-slate-900/60 border-b border-slate-800">
+                              <td colSpan={7} className="px-6 py-3 text-xs text-slate-300 space-y-1.5 animate-fadeIn">
+                                <p>📅 Validade: <span className={alertaValidade ? 'text-amber-400 font-bold' : 'text-slate-100'}>{prod.validade || 'Sem data'} {alertaValidade && '⚠️ Vence em breve!'}</span></p>
+                                <p>💰 Preço Unitário: <span className="text-slate-100">{Number(prod.preco_unitario || 0).toFixed(2)}</span></p>
+                                <p>⏳ Consumo Médio: <span className="text-emerald-400 font-medium">{stats.mediaDiasConsumo > 0 ? `Dura aprox. ${stats.mediaDiasConsumo} dias` : 'Calculando...'}</span></p>
+                                <p>🔮 Previsão de Término: <span className="text-amber-400 font-medium">{stats.dataTerminoFmt}</span></p>
+                                <p>🏷️ Categoria: <span className="text-slate-100">{prod.categoria || 'Mercearia'}</span></p>
+                                <p>📍 Local: <span className="text-slate-100">{prod.local || 'Armário'}</span></p>
+                              </td>
+                            </tr>
+                          )}
+                        </>
+                      );
+                    })}
+                    {inventarioFiltrado.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-slate-500 text-sm">Nenhum item encontrado.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'compras' && (
+          <div className="space-y-6">
+            <input 
+              type="file" 
+              accept="image/*" 
+              capture="environment" 
+              ref={comprasFileInputRef} 
+              onChange={(e) => comprasFileId && handleAnalisarEtiquetaCompras(e, comprasFileId)} 
+              className="hidden" 
+            />
+
+            <div className="bg-gradient-to-r from-amber-950/80 to-slate-900 border border-amber-800/80 rounded-2xl p-4 md:p-6 shadow-xl flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div>
+                <p className="text-xs text-amber-400 font-semibold uppercase tracking-wider">Calculadora do Carrinho</p>
+                <h3 className="text-2xl md:text-3xl font-bold text-slate-100 mt-0.5">
+                  R$ {totalCalculadoraCompras.toFixed(2)}
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  {listaCompras.length} {listaCompras.length === 1 ? 'item pendente' : 'itens pendentes'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={finalizarCompra}
+                disabled={loadingIA || totalCalculadoraCompras === 0}
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-950 transition flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <span>{loadingIA ? '⏳ A processar...' : '✅ Finalizar Compra'}</span>
+              </button>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+                <h2 className="text-xl font-bold text-amber-400">🛒 Lista de Compras (Itens Esgotados)</h2>
+                <div className="w-full sm:w-72">
+                  <input 
+                    type="text" 
+                    value={buscaCompras} 
+                    onChange={e => setBuscaCompras(e.target.value)}
+                    placeholder="🔍 Pesquisar nas compras..." 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs focus:border-amber-500 outline-none text-slate-200"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+              {listaComprasFiltrada.map(c => {
+                  const { menor, mediaPreco } = analisarItem(c.item, 0);
+                  const precoAtualVal = precosAtuais[c.id] || '';
+                  const qtdComprarVal = quantidadesCompra[c.id] !== undefined ? quantidadesCompra[c.id] : calcularSugestaoCompra(c.item);
+
+                  return (
+                    <div key={c.id} className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl space-y-2.5 shadow">
+                      
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2 truncate pr-2">
+                          <span className="font-semibold text-sm text-slate-100 truncate">❌ {c.item}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] text-amber-500 bg-amber-950/40 border border-amber-900 px-2.5 py-0.5 rounded-full font-medium">Pendente</span>
+                          <button
+                            type="button"
+                            onClick={() => excluirItemCompras(c.id, c.item)}
+                            className="bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800 p-1.5 rounded-lg text-xs transition"
+                            title="Descartar item da lista"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-[1fr_1fr_80px_55px_42px] gap-1.5 items-center">
+                        
+                        <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center min-w-0">
+                          <span className="block text-[9px] text-slate-400 uppercase tracking-wider">Menor</span>
+                          <span className="font-bold text-emerald-400 text-xs truncate block">
+                            {menor > 0 ? menor.toFixed(2) : '0.00'}
+                          </span>
+                        </div>
+
+                        <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-center min-w-0">
+                          <span className="block text-[9px] text-slate-400 uppercase tracking-wider">Médio</span>
+                          <span className="font-bold text-blue-400 text-xs truncate block">
+                            {mediaPreco > 0 ? mediaPreco.toFixed(2) : '0.00'}
+                          </span>
+                        </div>
+
+                        <div className="relative">
+                          <span className="absolute left-1.5 top-2 text-[9px] text-slate-400">R$</span>
+                          <input 
+                            type="number" 
+                            step="0.01" 
+                            value={precoAtualVal} 
+                            onChange={(e) => setPrecosAtuais({ ...precosAtuais, [c.id]: e.target.value })}
+                            placeholder="Atual" 
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-slate-200 text-center font-bold"
+                            title="Preço Atual"
+                          />
+                        </div>
+
+                        <div className="relative">
+                          <span className="absolute left-1 top-2 text-[9px] text-slate-400">Qtd</span>
+                          <input 
+                            type="number" 
+                            min="1"
+                            value={qtdComprarVal} 
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setQuantidadesCompra({ ...quantidadesCompra, [c.id]: val === '' ? '' as any : parseInt(val) });
+                            }}
+                            onBlur={(e) => {
+                              if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                                setQuantidadesCompra({ ...quantidadesCompra, [c.id]: 1 });
+                              }
+                            }}
+                            placeholder="Qtd" 
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-1 py-1.5 text-[11px] focus:border-amber-500 outline-none text-amber-300 text-center font-bold"
+                            title="Quantidade a Comprar"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setComprasFileId(c.id);
+                            comprasFileInputRef.current?.click();
+                          }}
+                          disabled={loadingIA}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 px-1 rounded-lg text-[11px] font-semibold flex items-center justify-center shadow transition disabled:opacity-50 h-[31px]"
+                          title="Ler etiqueta de preço com IA"
+                        >
+                          {loadingIA && comprasFileId === c.id ? '⏳' : '📸'}
+                        </button>
+
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between border-t border-slate-800/60 pt-2">
+                        <span className="text-[10px] text-slate-400 font-medium">📅 Validade (Opcional):</span>
+                        <input
+                          type="date"
+                          value={validadesCompra[c.id] || ''}
+                          onChange={(e) => setValidadesCompra({ ...validadesCompra, [c.id]: e.target.value })}
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] focus:border-amber-500 outline-none text-slate-300"
+                        />
+                      </div>
+
+                    </div>
+                  );
+                })}
+
+                {listaComprasFiltrada.length === 0 && (
+                  <p className="text-slate-500 text-sm text-center py-10">Nenhum item encontrado.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'historico' && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+              <h2 className="text-xl font-bold text-teal-400">📊 Histórico de Movimentações</h2>
+              <div className="w-full sm:w-72">
+                <input 
+                  type="text" 
+                  value={buscaHistorico} 
+                  onChange={e => setBuscaHistorico(e.target.value)}
+                  placeholder="🔍 Pesquisar no histórico..." 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs focus:border-teal-500 outline-none text-slate-200"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 text-xs">
+                    <th className="pb-3">Data</th>
+                    <th className="pb-3">Item</th>
+                    <th className="pb-3">Tipo</th>
+                    <th className="pb-3 text-center">Qtd</th>
+                    <th className="pb-3">Loja</th>
+                    <th className="pb-3">Responsável</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/50">
+                  {historicoFiltrado.map(h => (
+                    <tr key={h.id} className="hover:bg-slate-800/30">
+                      <td className="py-3 text-xs text-slate-400">{new Date(h.created_at).toLocaleString('pt-BR')}</td>
+                      <td className="py-3 font-medium text-slate-200">{h.item}</td>
+                      <td className="py-3">
+                        <span className={`text-xs px-2.5 py-1 rounded-full border ${h.tipo_movimento === 'entrada' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-red-950 text-red-400 border-red-800'}`}>
+                          {h.tipo_movimento}
+                        </span>
+                      </td>
+                      <td className="py-3 text-center font-bold">{h.quantidade}</td>
+                      <td className="py-3 text-xs text-slate-400">{h.loja || '-'}</td>
+                      <td className="py-3 text-xs text-slate-400">{h.responsavel || '-'}</td>
+                    </tr>
+                  ))}
+                  {historicoFiltrado.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-500 text-sm">Nenhum registo encontrado.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+      </main>
+    </div>
+  );
+}
